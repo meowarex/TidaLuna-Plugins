@@ -1495,7 +1495,38 @@ const buildInjectedLyricsShell = (panel: HTMLElement): void => {
 	panel.replaceChildren(trackLyrics);
 };
 
-const ensureLyricsTab = (): boolean => {
+const waitForNativeTab = (): Promise<boolean> => {
+	if (
+		document.querySelector(
+			'[data-test="tabs-lyrics"]:not([data-rl-injected])',
+		)
+	) {
+		return Promise.resolve(true);
+	}
+
+	return new Promise((resolve) => {
+		const localUnloads = new Set<LunaUnload>();
+		let settled = false;
+		const settle = (result: boolean): void => {
+			if (settled) return;
+			settled = true;
+			for (const fn of localUnloads) fn();
+			localUnloads.clear();
+			resolve(result);
+		};
+
+		observe<HTMLElement>(
+			localUnloads,
+			'[data-test="tabs-lyrics"]:not([data-rl-injected])',
+			() => settle(true),
+		);
+
+		const timer = window.setTimeout(() => settle(false), 200);
+		localUnloads.add(() => clearTimeout(timer));
+	});
+};
+
+const ensureLyricsTab = async (): Promise<boolean> => {
 	const existingLyricsTab = document.querySelector(
 		'[data-test="tabs-lyrics"]',
 	) as HTMLElement;
@@ -1507,6 +1538,9 @@ const ensureLyricsTab = (): boolean => {
 		buildInjectedLyricsShell(injectedPanelEl);
 		return true;
 	}
+
+	// resolves instantly if native tab already exists (fallback to 200ms for slow ass tidal re renders)
+	if (await waitForNativeTab()) return true;
 
 	const root = getTabsRoot();
 	if (!root) return false;
@@ -1631,6 +1665,16 @@ function setupStickyLyricsObserver(): void {
 
 	// Re-create dropdown whenever lyrics tab is back from the ether
 	observe<HTMLElement>(unloads, '[data-test="tabs-lyrics"]', () => {
+		// If a native lyrics tab appeared while an injected one exists, remove the duplicate
+		if (injectedTabEl) {
+			const nativeTab = document.querySelector(
+				'[data-test="tabs-lyrics"]:not([data-rl-injected])',
+			);
+			if (nativeTab) {
+				clearInjectedLyricsTab();
+			}
+		}
+
 		const tab = document.querySelector('[data-test="tabs-lyrics"]');
 		if (tab && !tab.querySelector(".sticky-lyrics-trigger")) {
 			createStickyLyricsDropdown();
@@ -3629,11 +3673,12 @@ const onTrackChange = async (): Promise<void> => {
 		);
 
 		lyricsMode = response.type === "Word" ? "word" : "line-api";
-		if (!ensureLyricsTab()) {
+		if (!(await ensureLyricsTab())) {
 			trace.log("Could not create/find lyrics tab container");
 			teardown();
 			return;
 		}
+		if (token !== trackChangeToken) return;
 		if (injectedTabEl && settings.stickyLyrics) {
 			showInjectedLyricsTab();
 		}
