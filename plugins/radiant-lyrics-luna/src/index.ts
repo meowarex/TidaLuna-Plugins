@@ -2081,9 +2081,10 @@ const fetchLyrics = async (
 	if (isrc) params += `&isrc=${encodeURIComponent(isrc)}`;
 	if (settings.romanizeLyrics) params += "&romanize=true";
 
+	const platformParam = "&platform=" + encodeURIComponent("Radiant Lyrics");
 	const primaryUrls = [
-		`https://rl-api.atomix.one/${params}`,
-		`https://lyricsplus-api.atomix.one/${params}`,
+		`https://rl-api.atomix.one/${params}${platformParam}`,
+		`https://lyricsplus-api.atomix.one/${params}${platformParam}`,
 	];
 	const fallbackUrl = `https://rl-api.kineticsand.net/${params}`;
 
@@ -2238,9 +2239,10 @@ const romanizeLines = async (lineTexts: string[]): Promise<string[] | null> => {
 		})),
 	};
 
+	const romanizePlatform = "?platform=" + encodeURIComponent("Radiant Lyrics");
 	const urls = [
-		"https://rl-api.atomix.one/romanize",
-		"https://lyricsplus-api.atomix.one/romanize",
+		`https://rl-api.atomix.one/romanize${romanizePlatform}`,
+		`https://lyricsplus-api.atomix.one/romanize${romanizePlatform}`,
 		"https://rl-api.kineticsand.net/romanize",
 	];
 
