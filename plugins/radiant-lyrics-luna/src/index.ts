@@ -7,6 +7,7 @@ import {
 	StyleTag,
 	safeInterval,
 	safeTimeout,
+	redux,
 } from "@luna/lib";
 import { Settings, settings } from "./Settings";
 
@@ -29,6 +30,38 @@ export { Settings };
 
 // clean up resources
 export const unloads = new Set<LunaUnload>();
+
+// MARKER: Player Market UI (Prevents new UI until i'm bothered to rewrite)
+
+// check & disable "Player Market UI" flag
+function disablePlayerMarketUI() {
+	const { flags, userOverrides } = redux.store.getState().featureFlags;
+	const key = Object.keys(flags).find(
+		(k) => k.toLowerCase().replace(/[\s_]/g, "-") === "player-market-ui",
+	);
+	const flag = key ? flags[key] : undefined;
+
+	if (!flag) {
+		trace.warn(`Feature flag "player-market-ui" not found`);
+		return;
+	}
+
+	const currentValue = key !== undefined && key in userOverrides ? userOverrides[key] : flag.value;
+	if (!currentValue) {
+		trace.log(`"${flag.name}" already disabled`);
+		return;
+	}
+
+	redux.actions["featureFlags/TOGGLE_USER_OVERRIDE"]({ ...flag, value: false });
+	trace.log(`Disabled "${flag.name}"`);
+}
+
+const { ready: flagsReady } = redux.store.getState().featureFlags;
+if (flagsReady) {
+	disablePlayerMarketUI();
+} else {
+	redux.intercept("featureFlags/READY", unloads, () => disablePlayerMarketUI(), true);
+}
 
 // StyleTag instances for different CSS modules
 const baseStyleTag = new StyleTag("RadiantLyrics-base", unloads);
