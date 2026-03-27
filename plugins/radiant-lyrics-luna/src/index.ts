@@ -31,10 +31,9 @@ export { Settings };
 // clean up resources
 export const unloads = new Set<LunaUnload>();
 
-// MARKER: Player Market UI (Prevents new UI until i'm bothered to rewrite)
+// MARKER: Player Market UI (Ensure new UI is enabled)
 
-// check & disable "Player Market UI" flag
-function disablePlayerMarketUI() {
+function enablePlayerMarketUI() {
 	const { flags, userOverrides } = redux.store.getState().featureFlags;
 	const key = Object.keys(flags).find(
 		(k) => k.toLowerCase().replace(/[\s_]/g, "-") === "player-market-ui",
@@ -47,20 +46,20 @@ function disablePlayerMarketUI() {
 	}
 
 	const currentValue = key !== undefined && key in userOverrides ? userOverrides[key] : flag.value;
-	if (!currentValue) {
-		trace.log(`"${flag.name}" already disabled`);
+	if (currentValue) {
+		trace.log(`"${flag.name}" already enabled`);
 		return;
 	}
 
-	redux.actions["featureFlags/TOGGLE_USER_OVERRIDE"]({ ...flag, value: false });
-	trace.log(`Disabled "${flag.name}"`);
+	redux.actions["featureFlags/TOGGLE_USER_OVERRIDE"]({ ...flag, value: true });
+	trace.log(`Enabled "${flag.name}"`);
 }
 
 const { ready: flagsReady } = redux.store.getState().featureFlags;
 if (flagsReady) {
-	disablePlayerMarketUI();
+	enablePlayerMarketUI();
 } else {
-	redux.intercept("featureFlags/READY", unloads, () => disablePlayerMarketUI(), true);
+	redux.intercept("featureFlags/READY", unloads, () => enablePlayerMarketUI(), true);
 }
 
 // StyleTag instances for different CSS modules
@@ -156,7 +155,7 @@ observe<HTMLElement>(unloads, '[data-test="footer-player"]', () => {
 });
 
 // MARKER: Quality-Based Seeker Color
-// Maps data-test-media-state-indicator-streaming-quality values to colors
+// Maps data-test-quality-badge-streaming-quality values to colors
 const qualityColors: Record<string, string> = {
 	HI_RES_LOSSLESS: "#ffd432", //Max
 	LOSSLESS: "#3fe", //High
@@ -176,15 +175,15 @@ const applyQualityProgressColor = (): void => {
 	}
 
 	// Read quality from the media-state tag
-	// (using data-test-media-state-indicator-streaming-quality)
+	// (using data-test-quality-badge-streaming-quality)
 	const qualityButton = document.querySelector(
-		"[data-test-media-state-indicator-streaming-quality]",
+		"[data-test-quality-badge-streaming-quality]",
 	) as HTMLElement | null;
 	if (!qualityButton) return;
 
 	const quality =
 		qualityButton.getAttribute(
-			"data-test-media-state-indicator-streaming-quality",
+			"data-test-quality-badge-streaming-quality",
 		) ?? "";
 	const color = qualityColors[quality];
 	if (!color) return;
@@ -239,7 +238,7 @@ const updateRadiantLyricsStyles = function (): void {
 
 	// Track title glow toggle based on settings
 	const trackTitleEl = document.querySelector(
-		'[data-test="now-playing-track-title"]',
+		'[data-test="new-now-playing"] [class*="_titleContainer_"]',
 	) as HTMLElement | null;
 	if (trackTitleEl) {
 		if (settings.trackTitleGlow && settings.lyricsGlowEnabled) {
@@ -392,7 +391,7 @@ const createHideUIButton = function (): void {
 		() => {
 			if (!settings.hideUIEnabled) return;
 			const fullscreenButton = document.querySelector(
-				'[data-test="request-fullscreen"]',
+				'[data-test="new-now-playing-expand"]',
 			);
 			if (!fullscreenButton || !fullscreenButton.parentElement) {
 				safeTimeout(unloads, () => createHideUIButton(), 1000);
@@ -548,7 +547,7 @@ function updateCoverArtBackground(method: number = 0): void {
 	}
 
 	const coverArtImageElement = document.querySelector(
-		'figure[class*="_albumImage"] > div > div > div > img',
+		'[data-test="current-media-imagery"] img',
 	) as HTMLImageElement;
 	let coverArtImageSrc: string | null = null;
 
@@ -562,7 +561,7 @@ function updateCoverArtBackground(method: number = 0): void {
 		}
 	} else {
 		const videoElement = document.querySelector(
-			'figure[class*="_albumImage"] > div > div > div > video',
+			'[data-test="current-media-imagery"] video',
 		) as HTMLVideoElement;
 		if (videoElement) {
 			coverArtImageSrc = videoElement.getAttribute("poster");
@@ -612,7 +611,7 @@ function updateCoverArtBackground(method: number = 0): void {
                     top: 0;
                     width: 100%;
                     height: 100%;
-                    z-index: -3;
+                    z-index: 0;
                     pointer-events: none;
                     overflow: hidden;
                 `;
@@ -628,7 +627,7 @@ function updateCoverArtBackground(method: number = 0): void {
                     width: 100%;
                     height: 100%;
                     background: #000;
-                    z-index: -2;
+                    z-index: 0;
                 `;
 				nowPlayingBackgroundContainer.appendChild(nowPlayingBlackBg);
 
@@ -641,7 +640,7 @@ function updateCoverArtBackground(method: number = 0): void {
                     top: 50%;
                     transform: translate(-50%, -50%);
                     object-fit: cover;
-                    z-index: -1;
+                    z-index: 1;
                     will-change: transform;
                     transform-origin: center center;
                 `;
@@ -657,7 +656,7 @@ function updateCoverArtBackground(method: number = 0): void {
                     width: 100%;
                     height: 100%;
                     background: radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.3) 60%, rgba(0, 0, 0, 0.8) 90%);
-                    z-index: -1;
+                    z-index: 2;
                     pointer-events: none;
                 `;
 				nowPlayingBackgroundContainer.appendChild(nowPlayingGradientOverlay);
@@ -1146,24 +1145,19 @@ const updateStickyLyricsFeature = (): void => {
 (window as any).updateStickyLyricsFeature = updateStickyLyricsFeature;
 
 const createStickyLyricsDropdown = (): void => {
-	const lyricsTab = document.querySelector(
-		'[data-test="tabs-lyrics"]',
+	const lyricsToggle = document.querySelector(
+		'[data-test="toggle-lyrics"]',
 	) as HTMLElement;
-	if (!lyricsTab) return;
-	if (lyricsTab.querySelector(".sticky-lyrics-trigger")) return;
+	if (!lyricsToggle) return;
+	if (lyricsToggle.querySelector(".sticky-lyrics-trigger")) return;
 
-	// Trigger
-	// lives inside the Lyrics <li>
+	// Trigger lives inside the toggle button
 	const trigger = document.createElement("div");
 	trigger.className = "sticky-lyrics-trigger";
 	trigger.setAttribute("title", "Sticky Lyrics");
-
-	// Set the icon & it's styling
-	// is only needed because i'm picky and prefer the Sparkle.. shhh
 	trigger.innerHTML = getStickyIcon();
 
-	// Block non-click events on trigger from reaching the Lyrics tab (capture phase)
-	// (capture phase stops the tab from activating & runs the toggle before the event is consumed by the SVG child) - Thx React.. again..
+	// Block non-click events from reaching the toggle button (capture phase)
 	for (const evtName of [
 		"pointerdown",
 		"pointerup",
@@ -1179,8 +1173,7 @@ const createStickyLyricsDropdown = (): void => {
 		);
 	}
 
-	// Dropdown
-	// lives in document.body so its events never touch the Lyrics tab - Thx React..
+	// Dropdown lives in document.body
 	const dropdown = document.createElement("div");
 	dropdown.className = "sticky-lyrics-dropdown";
 	dropdown.style.display = "none";
@@ -1202,33 +1195,30 @@ const createStickyLyricsDropdown = (): void => {
 		</div>
 	`;
 
-	// Toggle dropdown on trigger click
 	const openDropdown = (): void => {
-		const buttonRect = lyricsTab.getBoundingClientRect();
+		const buttonRect = lyricsToggle.getBoundingClientRect();
+		const dropWidth = Math.max(buttonRect.width, 150);
 		dropdown.style.top = `${buttonRect.bottom}px`;
-		dropdown.style.left = `${buttonRect.left}px`;
-		dropdown.style.width = `${buttonRect.width}px`;
+		dropdown.style.left = `${buttonRect.right - dropWidth}px`;
+		dropdown.style.width = `${dropWidth}px`;
 		dropdown.style.display = "block";
-		lyricsTab.classList.add("sticky-lyrics-open");
+		lyricsToggle.classList.add("sticky-lyrics-open");
 	};
 	const closeDropdown = (): void => {
 		dropdown.style.display = "none";
-		lyricsTab.classList.remove("sticky-lyrics-open");
+		lyricsToggle.classList.remove("sticky-lyrics-open");
 	};
 
 	trigger.addEventListener(
 		"click",
 		(e: MouseEvent) => {
 			e.stopPropagation();
-			const isActive = lyricsTab.getAttribute("aria-selected") === "true";
+			const isActive = lyricsToggle.getAttribute("aria-pressed") === "true";
 			if (!isActive) {
-				// Navigate to Lyrics & open dropdown
-				lyricsTab.click();
-				// Delay to let the tab activate
+				lyricsToggle.click();
 				safeTimeout(unloads, () => openDropdown(), 150);
 				return;
 			}
-			// Toggle dropdown
 			if (dropdown.style.display === "none") {
 				openDropdown();
 			} else {
@@ -1238,7 +1228,6 @@ const createStickyLyricsDropdown = (): void => {
 		true,
 	);
 
-	// Handle toggle switch
 	const stickyCheckbox = dropdown.querySelector(
 		'input[data-setting="stickyLyrics"]',
 	) as HTMLInputElement;
@@ -1269,7 +1258,6 @@ const createStickyLyricsDropdown = (): void => {
 		});
 	}
 
-	// Close dropdown when clicking outside trigger & dropdown
 	const handleOutsideClick = (e: MouseEvent): void => {
 		if (
 			!trigger.contains(e.target as Node) &&
@@ -1280,14 +1268,12 @@ const createStickyLyricsDropdown = (): void => {
 	};
 	document.addEventListener("click", handleOutsideClick);
 
-	// Trigger goes inside the Lyrics <li> & dropdown goes in <body>
-	lyricsTab.appendChild(trigger);
+	lyricsToggle.appendChild(trigger);
 	document.body.appendChild(dropdown);
 
-	// Register cleanup
 	unloads.add(() => {
 		document.removeEventListener("click", handleOutsideClick);
-		lyricsTab.classList.remove("sticky-lyrics-open");
+		lyricsToggle.classList.remove("sticky-lyrics-open");
 		trigger.remove();
 		dropdown.remove();
 	});
@@ -1297,419 +1283,59 @@ const createStickyLyricsDropdown = (): void => {
 const tryActivateStickyLyricsTab = (): boolean => {
 	if (!settings.stickyLyrics) return false;
 
-	const lyricsTab = document.querySelector(
-		'[data-test="tabs-lyrics"]',
+	const lyricsToggle = document.querySelector(
+		'[data-test="toggle-lyrics"]',
 	) as HTMLElement;
-	const playQueueTab = document.querySelector(
-		'[data-test="tabs-play-queue"]',
-	) as HTMLElement;
+	if (!lyricsToggle) return false;
 
-	if (!lyricsTab) return false;
-
-	// Already active — nothing to do
-	if (lyricsTab.getAttribute("aria-selected") === "true") return true;
-
-	if (lyricsTab.getAttribute("data-rl-injected") === "true") {
-		showInjectedLyricsTab();
-	} else {
-		lyricsTab.click();
+	if (syntheticNativeLyrics) {
+		notifyNativeLyricsStateChanged();
 	}
 
-	// Verify we actually stayed on lyrics after a short delay
-	safeTimeout(
-		unloads,
-		() => {
-			if (!settings.stickyLyrics) return;
-			const onLyrics = document.querySelector(
-				'[data-test="tabs-lyrics"][aria-selected="true"]',
-			);
-			if (!onLyrics && playQueueTab) {
-				playQueueTab.click();
-			}
-		},
-		800,
-	);
+	// Already pressed — nothing to do
+	if (lyricsToggle.getAttribute("aria-pressed") === "true") return true;
 
+	lyricsToggle.click();
 	return true;
 };
 
-// Handle switching tabs on track change
+const syncNativeLyricsAvailability = (): void => {
+	if (!syntheticNativeLyrics) return;
+	notifyNativeLyricsStateChanged();
+};
+
+// Handle ensuring lyrics panel stays open on track change
 const handleStickyLyricsTrackChange = (): void => {
 	if (!settings.stickyLyrics) return;
 
-	// Process the track change and update tab state
-	// Tidal takes a while to process the track change sometimes :(
 	safeTimeout(
 		unloads,
 		() => {
 			if (!settings.stickyLyrics) return;
-
-			if (!tryActivateStickyLyricsTab()) {
-				const playQueueTab = document.querySelector(
-					'[data-test="tabs-play-queue"]',
-				) as HTMLElement;
-				if (playQueueTab) playQueueTab.click();
-			}
+			syncNativeLyricsAvailability();
+			tryActivateStickyLyricsTab();
 		},
 		1200,
 	);
 };
 
-// MARKER: Injected API Lyrics (for non tidal lyric tracks)
-
-let injectedTablistClickCleanup: (() => void) | null = null;
+// Track change sequencing (used by onTrackChange)
 let isTrackChangeRunning = false;
 let trackChangeRunSeq = 0;
-const hiddenPanelsByInjected = new Set<HTMLElement>();
 
-const getTabsRoot = (): HTMLElement | null => {
-	const roots = Array.from(
-		document.querySelectorAll('.react-tabs[data-rttabs="true"]'),
-	) as HTMLElement[];
-	for (const root of roots) {
-		if (root.querySelector('[data-test="tabs-play-queue"]')) return root;
-	}
-	return null;
-};
-
-const hideInjectedLyricsTab = (): void => {
-	if (!injectedTabEl || !injectedPanelEl) return;
-	const root = getTabsRoot();
-	if (root) {
-		for (const panel of hiddenPanelsByInjected) {
-			panel.style.removeProperty("display");
-		}
-		hiddenPanelsByInjected.clear();
-
-		const nativePanels = Array.from(
-			root.querySelectorAll('div[role="tabpanel"]'),
-		) as HTMLElement[];
-		for (const panel of nativePanels) {
-			if (panel === injectedPanelEl) continue;
-			panel.style.removeProperty("display");
-		}
-	}
-
-	injectedTabEl.setAttribute("aria-selected", "false");
-	injectedTabEl.setAttribute("tabindex", "-1");
-	injectedTabEl.setAttribute("aria-expanded", "false");
-	injectedTabEl.classList.remove("react-tabs__tab--selected");
-	if (activeTabClass) {
-		injectedTabEl.classList.remove(activeTabClass);
-	}
-
-	injectedPanelEl.classList.remove("react-tabs__tab-panel--selected");
-	if (activePanelClass) {
-		injectedPanelEl.classList.remove(activePanelClass);
-	}
-	injectedPanelEl.setAttribute("aria-hidden", "true");
-	injectedPanelEl.style.display = "none";
-};
-
-const showInjectedLyricsTab = (): void => {
-	if (!injectedTabEl || !injectedPanelEl) return;
-	const root = getTabsRoot();
-	if (!root) return;
-
-	const tabs = Array.from(
-		root.querySelectorAll('ul[role="tablist"] > li[role="tab"]'),
-	) as HTMLElement[];
-	const panels = Array.from(
-		root.querySelectorAll('div[role="tabpanel"]'),
-	) as HTMLElement[];
-
-	if (!activeTabClass) {
-		for (const tab of tabs) {
-			const cls = Array.from(tab.classList).find((c) =>
-				c.includes("_activeTab_"),
-			);
-			if (cls) {
-				activeTabClass = cls;
-				break;
-			}
-		}
-	}
-	if (!activePanelClass) {
-		for (const panel of panels) {
-			const cls = Array.from(panel.classList).find((c) =>
-				c.includes("_isActive_"),
-			);
-			if (cls) {
-				activePanelClass = cls;
-				break;
-			}
-		}
-	}
-
-	const nativePanels = Array.from(
-		root.querySelectorAll('div[role="tabpanel"]'),
-	) as HTMLElement[];
-	for (const panel of hiddenPanelsByInjected) {
-		panel.style.removeProperty("display");
-	}
-	hiddenPanelsByInjected.clear();
-
-	for (const tab of tabs) {
-		if (tab === injectedTabEl) continue;
-		if (activeTabClass) tab.classList.remove(activeTabClass);
-	}
-	for (const panel of nativePanels) {
-		if (panel === injectedPanelEl) continue;
-		if (panel.classList.contains("react-tabs__tab-panel--selected")) {
-			panel.style.display = "none";
-			hiddenPanelsByInjected.add(panel);
-		}
-	}
-
-	injectedTabEl.setAttribute("aria-selected", "true");
-	injectedTabEl.setAttribute("tabindex", "0");
-	injectedTabEl.setAttribute("aria-expanded", "true");
-	injectedTabEl.classList.add("react-tabs__tab--selected");
-	if (activeTabClass) injectedTabEl.classList.add(activeTabClass);
-
-	injectedPanelEl.classList.add("react-tabs__tab-panel--selected");
-	if (activePanelClass) {
-		injectedPanelEl.classList.add(activePanelClass);
-	}
-	injectedPanelEl.removeAttribute("aria-hidden");
-	injectedPanelEl.style.removeProperty("display");
-};
-
-const clearInjectedLyricsTab = (): void => {
-	hideInjectedLyricsTab();
-	if (creditsTabEl) {
-		if (creditsPrevOrder) {
-			creditsTabEl.style.setProperty("order", creditsPrevOrder);
-		} else {
-			creditsTabEl.style.removeProperty("order");
-		}
-	}
-
-	if (injectedTablistClickCleanup) {
-		injectedTablistClickCleanup();
-		injectedTablistClickCleanup = null;
-	}
-
-	if (injectedTabEl) injectedTabEl.remove();
-	if (injectedPanelEl) injectedPanelEl.remove();
-
-	injectedTabEl = null;
-	injectedPanelEl = null;
-	activeTabClass = "";
-	activePanelClass = "";
-	creditsTabEl = null;
-	creditsPrevOrder = "";
-};
-
-const buildInjectedLyricsShell = (panel: HTMLElement): void => {
-	if (panel.querySelector('[data-test="lyrics-lines"]')) return;
-
-	const trackLyrics = document.createElement("div");
-	trackLyrics.setAttribute("data-test", "track-lyrics");
-
-	const lyricsContainer = document.createElement("div");
-	lyricsContainer.className = "_lyricsContainer_fa37c08 _smoothScroll_05ef096";
-	lyricsContainer.setAttribute("data-test", "lyrics");
-
-	const lyricsLines = document.createElement("div");
-	lyricsLines.className =
-		"_lyricsText_bf0080e _lyrics_0537465 _hasCues_76b4841";
-	lyricsLines.setAttribute("data-test", "lyrics-lines");
-
-	const placeholder = document.createElement("span");
-	placeholder.textContent = "...";
-	const linesInner = document.createElement("div");
-
-	lyricsLines.appendChild(placeholder);
-	lyricsLines.appendChild(linesInner);
-	lyricsContainer.appendChild(lyricsLines);
-	trackLyrics.appendChild(lyricsContainer);
-
-	panel.replaceChildren(trackLyrics);
-};
-
-const waitForNativeTab = (): Promise<boolean> => {
-	if (
-		document.querySelector(
-			'[data-test="tabs-lyrics"]:not([data-rl-injected])',
-		)
-	) {
-		return Promise.resolve(true);
-	}
-
-	return new Promise((resolve) => {
-		const localUnloads = new Set<LunaUnload>();
-		let settled = false;
-		const settle = (result: boolean): void => {
-			if (settled) return;
-			settled = true;
-			for (const fn of localUnloads) fn();
-			localUnloads.clear();
-			resolve(result);
-		};
-
-		observe<HTMLElement>(
-			localUnloads,
-			'[data-test="tabs-lyrics"]:not([data-rl-injected])',
-			() => settle(true),
-		);
-
-		const timer = window.setTimeout(() => settle(false), 200);
-		localUnloads.add(() => clearTimeout(timer));
-	});
-};
-
-const ensureLyricsTab = async (): Promise<boolean> => {
-	const existingLyricsTab = document.querySelector(
-		'[data-test="tabs-lyrics"]',
-	) as HTMLElement;
-	if (existingLyricsTab && existingLyricsTab !== injectedTabEl) {
-		clearInjectedLyricsTab();
-		return true;
-	}
-	if (injectedTabEl && injectedPanelEl) {
-		buildInjectedLyricsShell(injectedPanelEl);
-		return true;
-	}
-
-	// resolves instantly if native tab already exists (fallback to 200ms for slow ass tidal re renders)
-	if (await waitForNativeTab()) return true;
-
-	const root = getTabsRoot();
-	if (!root) return false;
-	const tabList = root.querySelector('ul[role="tablist"]') as HTMLElement;
-	if (!tabList) return false;
-
-	const sampleTab = tabList.querySelector('li[role="tab"]') as HTMLElement;
-	const tabItemClass =
-		Array.from(sampleTab?.classList ?? []).find((c) =>
-			c.includes("_tabItem_"),
-		) ?? "";
-
-	const samplePanel = root.querySelector('div[role="tabpanel"]') as HTMLElement;
-	const panelBaseClass =
-		Array.from(samplePanel?.classList ?? []).find((c) =>
-			c.includes("_tabPanelStyles_"),
-		) ?? "";
-
-	const panelId = `panel:rl:${Date.now().toString(36)}`;
-	const tabId = `tab:rl:${Date.now().toString(36)}`;
-
-	const tabEl = document.createElement("li");
-	tabEl.setAttribute("data-test", "tabs-lyrics");
-	tabEl.setAttribute("data-rttab", "true");
-	tabEl.setAttribute("data-rl-injected", "true");
-	tabEl.setAttribute("role", "tab");
-	tabEl.setAttribute("id", tabId);
-	tabEl.setAttribute("aria-selected", "false");
-	tabEl.setAttribute("aria-disabled", "false");
-	tabEl.setAttribute("aria-controls", panelId);
-	tabEl.setAttribute("tabindex", "-1");
-	if (tabItemClass) tabEl.classList.add(tabItemClass);
-
-	const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-	icon.setAttribute("class", "_icon_77f3f89");
-	icon.setAttribute("viewBox", "0 0 20 20");
-	const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
-	use.setAttribute("href", "#general__lyrics");
-	icon.appendChild(use);
-
-	const label = document.createElement("span");
-	label.className = "wave-text-description-demi";
-	label.setAttribute("data-wave-color", "textDefault");
-	label.textContent = "Lyrics";
-
-	tabEl.appendChild(icon);
-	tabEl.appendChild(label);
-
-	const panelEl = document.createElement("div");
-	panelEl.setAttribute("data-rl-injected", "true");
-	panelEl.setAttribute("role", "tabpanel");
-	panelEl.setAttribute("id", panelId);
-	panelEl.setAttribute("aria-labelledby", tabId);
-	if (panelBaseClass) panelEl.classList.add(panelBaseClass);
-
-	buildInjectedLyricsShell(panelEl);
-
-	const creditsTab = tabList.querySelector(
-		'[data-test="tabs-credits"]',
-	) as HTMLElement | null;
-	if (creditsTab) {
-		creditsTabEl = creditsTab;
-		creditsPrevOrder = creditsTab.style.getPropertyValue("order") || "";
-		creditsTab.style.setProperty("order", "1000");
-		tabEl.style.setProperty("order", "999");
-	}
-
-	tabList.appendChild(tabEl);
-
-	root.appendChild(panelEl);
-
-	tabEl.addEventListener("click", (e) => {
-		e.preventDefault();
-		e.stopPropagation();
-		(
-			e as unknown as { stopImmediatePropagation?: () => void }
-		).stopImmediatePropagation?.();
-		showInjectedLyricsTab();
-	});
-
-	const handleTabListClick = (e: Event): void => {
-		const target = e.target as Node;
-		const clickedTab = (target as HTMLElement)?.closest?.(
-			'li[role="tab"]',
-		) as HTMLElement;
-		if (!clickedTab || clickedTab === tabEl) return;
-
-		const allTabs = Array.from(
-			tabList.querySelectorAll('li[role="tab"]'),
-		) as HTMLElement[];
-		for (const tab of allTabs) {
-			if (tab === tabEl) continue;
-			if (activeTabClass) tab.classList.remove(activeTabClass);
-			tab.classList.remove("react-tabs__tab--selected");
-		}
-		if (activeTabClass) clickedTab.classList.add(activeTabClass);
-		clickedTab.classList.add("react-tabs__tab--selected");
-		clickedTab.setAttribute("aria-selected", "true");
-		clickedTab.setAttribute("tabindex", "0");
-
-		window.setTimeout(() => {
-			hideInjectedLyricsTab();
-		}, 0);
-	};
-	tabList.addEventListener("click", handleTabListClick);
-	injectedTablistClickCleanup = () => {
-		tabList.removeEventListener("click", handleTabListClick);
-	};
-
-	injectedTabEl = tabEl;
-	injectedPanelEl = panelEl;
-	return true;
-};
-
-// Observer: create dropdown when lyrics tab appears & detect track changes
+// Observer: create dropdown when lyrics toggle appears & detect track changes
 function setupStickyLyricsObserver(): void {
-	// Create dropdown if lyrics tab already exists
-	const existing = document.querySelector('[data-test="tabs-lyrics"]');
+	// Create dropdown if lyrics toggle already exists
+	const existing = document.querySelector('[data-test="toggle-lyrics"]');
 	if (existing && !existing.querySelector(".sticky-lyrics-trigger")) {
 		createStickyLyricsDropdown();
 	}
 
-	// Re-create dropdown whenever lyrics tab is back from the ether
-	observe<HTMLElement>(unloads, '[data-test="tabs-lyrics"]', () => {
-		// If a native lyrics tab appeared while an injected one exists, remove the duplicate
-		if (injectedTabEl) {
-			const nativeTab = document.querySelector(
-				'[data-test="tabs-lyrics"]:not([data-rl-injected])',
-			);
-			if (nativeTab) {
-				clearInjectedLyricsTab();
-			}
-		}
-
-		const tab = document.querySelector('[data-test="tabs-lyrics"]');
-		if (tab && !tab.querySelector(".sticky-lyrics-trigger")) {
+	// Re-create dropdown whenever lyrics toggle reappears
+	observe<HTMLElement>(unloads, '[data-test="toggle-lyrics"]', () => {
+		const toggle = document.querySelector('[data-test="toggle-lyrics"]');
+		syncNativeLyricsAvailability();
+		if (toggle && !toggle.querySelector(".sticky-lyrics-trigger")) {
 			createStickyLyricsDropdown();
 			if (settings.stickyLyrics) {
 				tryActivateStickyLyricsTab();
@@ -1718,12 +1344,12 @@ function setupStickyLyricsObserver(): void {
 	});
 
 	// Apply word lyrics when lyrics container appears or reappears
-	observe<HTMLElement>(unloads, '[data-test="lyrics-lines"]', () => {
+	observe<HTMLElement>(unloads, '[data-test="now-playing-lyrics"]', () => {
 		if (isTrackChangeRunning) return;
-		const lyricsLines = document.querySelector(
-			'[data-test="lyrics-lines"]',
-		) as HTMLElement;
-		if (lyricsLines?.querySelector(".rl-wbw-container")) return;
+		const panel = getNowPlayingLyricsPanel();
+		if (panel?.querySelector(".rl-wbw-container")) return;
+		const lyricsContainer = findLyricsContainer();
+		if (lyricsContainer?.querySelector(".rl-wbw-container")) return;
 
 		if (lyricsMode === "line-tidal") {
 			void reapplyTidalLines();
@@ -1821,6 +1447,23 @@ interface LineLyricsResponse {
 type LyricsApiResponse = WordLyricsResponse | LineLyricsResponse;
 type LyricsOverlayMode = "none" | "word" | "line-api" | "line-tidal";
 
+interface TrackInfo {
+	trackId: string;
+	title: string;
+	artist: string;
+	isrc?: string;
+}
+
+interface SyntheticNativeLyricsState {
+	trackId: string;
+	lyricsId: string;
+	text: string;
+	lrcText: string;
+	providerName: string;
+	direction: "LEFT_TO_RIGHT" | "RIGHT_TO_LEFT";
+	response: LyricsApiResponse;
+}
+
 // syllable state
 let trackChangeToken = 0;
 let lyricsData: WordLine[] | null = null;
@@ -1830,15 +1473,341 @@ let tickLoopUnload: LunaUnload | null = null;
 let isActive = false;
 let savedTidalClasses: string[] | null = null;
 let tidalFollowObserver: MutationObserver | null = null;
-let injectedTabEl: HTMLElement | null = null;
-let injectedPanelEl: HTMLElement | null = null;
-let activeTabClass = "";
-let activePanelClass = "";
-let creditsTabEl: HTMLElement | null = null;
-let creditsPrevOrder = "";
+let nativeLyricsOverlayInstalled = false;
+let originalReduxGetState: (() => ReturnType<typeof redux.store.getState>) | null =
+	null;
+let syntheticNativeLyrics: SyntheticNativeLyricsState | null = null;
+let cachedSyntheticEntry: SyntheticNativeLyricsState | null = null;
+let cachedSyntheticEntity: any = null;
+let cachedSrcTrackRef: any = null;
+let cachedModifiedTrack: any = null;
+let cachedSrcTracksSlice: any = null;
+let cachedSrcLyricsSlice: any = null;
+let cachedOvlTracksSlice: any = null;
+let cachedOvlLyricsSlice: any = null;
+let cachedSrcEntities: any = null;
+let cachedOvlEntities: any = null;
 
 const isWordMode = (): boolean => lyricsMode === "word";
 const getLyricsStyle = (): number => (isWordMode() ? settings.lyricsStyle : 0);
+
+const getNowPlayingLyricsPanel = (): HTMLElement | null =>
+	document.querySelector('[data-test="now-playing-lyrics"]') as HTMLElement | null;
+
+// Find the lyrics text container (wraps the individual lyrics-line spans).
+// In the new player-market UI this element has no data-test; we locate it by
+// walking up from the first lyrics-line span.
+const findLyricsContainer = (): HTMLElement | null => {
+	const line = document.querySelector('span[data-test="lyrics-line"]');
+	if (line?.parentElement?.parentElement) {
+		return line.parentElement.parentElement as HTMLElement;
+	}
+	return null;
+};
+
+// Check whether a tidal lyrics span is currently the active/highlighted line.
+// Old UI used data-current="true"; new player-market UI uses a CSS class
+// matching _current_*.
+const isTidalSpanActive = (span: HTMLElement): boolean => {
+	return Array.from(span.classList).some((c) => c.startsWith("_current_"));
+};
+
+const getReduxState = (preferOriginal = false): any => {
+	if (preferOriginal && originalReduxGetState) {
+		return originalReduxGetState();
+	}
+	return redux.store.getState() as any;
+};
+
+const getNativeTrackEntity = (trackId: string): any | null =>
+	getReduxState(true)?.entities?.tracks?.entities?.[trackId] ?? null;
+
+const trackHasNativeLyrics = (trackId: string): boolean => {
+	const rel = getNativeTrackEntity(trackId)?.relationships?.lyrics?.data;
+	return Array.isArray(rel) && rel.length > 0;
+};
+
+const currentTrackWantsLyricsPanel = (): boolean =>
+	(getReduxState()?.settings?.nowPlayingActiveView ?? null) === "lyrics";
+
+const getSyntheticNativeLyricsEntity = (
+	entry: SyntheticNativeLyricsState,
+) => ({
+	id: entry.lyricsId,
+	type: "lyrics",
+	attributes: {
+		text: entry.text,
+		lrcText: entry.lrcText,
+		technicalStatus: "OK",
+		provider: {
+			source: "THIRD_PARTY",
+			name: entry.providerName,
+			commonTrackId: "",
+			lyricsId: "",
+		},
+		direction: entry.direction,
+	},
+	relationships: {
+		owners: {
+			links: {
+				self: `/lyrics/${entry.lyricsId}/relationships/owners`,
+			},
+		},
+		track: {
+			links: {
+				self: `/lyrics/${entry.lyricsId}/relationships/track`,
+			},
+		},
+	},
+});
+
+const invalidateOverlayCache = (): void => {
+	cachedSyntheticEntry = null;
+	cachedSyntheticEntity = null;
+	cachedSrcTrackRef = null;
+	cachedModifiedTrack = null;
+	cachedSrcTracksSlice = null;
+	cachedSrcLyricsSlice = null;
+	cachedOvlTracksSlice = null;
+	cachedOvlLyricsSlice = null;
+	cachedSrcEntities = null;
+	cachedOvlEntities = null;
+};
+
+const overlaySyntheticNativeLyricsState = (state: any): any => {
+	const entry = syntheticNativeLyrics;
+	if (!entry) return state;
+
+	const entities = state?.entities;
+	const tracksSlice = entities?.tracks;
+	const lyricsSlice = entities?.lyrics;
+	if (!tracksSlice?.entities || !lyricsSlice?.entities) return state;
+
+	const existingTrack = tracksSlice.entities[entry.trackId];
+	if (!existingTrack) return state;
+
+	const existingRel = existingTrack.relationships?.lyrics?.data;
+	if (Array.isArray(existingRel) && existingRel.length > 0) return state;
+
+	if (cachedSyntheticEntry !== entry) {
+		cachedSyntheticEntry = entry;
+		cachedSyntheticEntity = getSyntheticNativeLyricsEntity(entry);
+		cachedSrcTrackRef = null;
+	}
+
+	if (cachedSrcTrackRef !== existingTrack) {
+		cachedSrcTrackRef = existingTrack;
+		cachedModifiedTrack = {
+			...existingTrack,
+			relationships: {
+				...existingTrack.relationships,
+				lyrics: {
+					...existingTrack.relationships?.lyrics,
+					data: [{ id: entry.lyricsId, type: "lyrics" }],
+				},
+			},
+		};
+		cachedSrcTracksSlice = null;
+	}
+
+	if (cachedSrcTracksSlice !== tracksSlice) {
+		cachedSrcTracksSlice = tracksSlice;
+		cachedOvlTracksSlice = {
+			...tracksSlice,
+			entities: { ...tracksSlice.entities, [entry.trackId]: cachedModifiedTrack },
+		};
+		cachedSrcEntities = null;
+	}
+
+	if (cachedSrcLyricsSlice !== lyricsSlice) {
+		cachedSrcLyricsSlice = lyricsSlice;
+		cachedOvlLyricsSlice = {
+			...lyricsSlice,
+			ids: lyricsSlice.ids.includes(entry.lyricsId)
+				? lyricsSlice.ids
+				: [...lyricsSlice.ids, entry.lyricsId],
+			entities: { ...lyricsSlice.entities, [entry.lyricsId]: cachedSyntheticEntity },
+		};
+		cachedSrcEntities = null;
+	}
+
+	if (cachedSrcEntities !== entities) {
+		cachedSrcEntities = entities;
+		cachedOvlEntities = {
+			...entities,
+			tracks: cachedOvlTracksSlice,
+			lyrics: cachedOvlLyricsSlice,
+		};
+	}
+
+	return { ...state, entities: cachedOvlEntities };
+};
+
+const installNativeLyricsOverlay = (): void => {
+	if (nativeLyricsOverlayInstalled) return;
+	const original = redux.store.getState.bind(redux.store);
+	originalReduxGetState = original;
+	(redux.store as any).getState = () => overlaySyntheticNativeLyricsState(original());
+	nativeLyricsOverlayInstalled = true;
+	unloads.add(() => {
+		if (originalReduxGetState) {
+			(redux.store as any).getState = originalReduxGetState;
+		}
+		nativeLyricsOverlayInstalled = false;
+		originalReduxGetState = null;
+		syntheticNativeLyrics = null;
+		invalidateOverlayCache();
+	});
+};
+
+const setNowPlayingActiveView = (view: string): boolean => {
+	const action = redux.actions["settings/SET_NOW_PLAYING_ACTIVE_VIEW"] as
+		| ((nextView: string) => unknown)
+		| undefined;
+	if (typeof action !== "function") return false;
+	action(view);
+	return true;
+};
+
+const notifyNativeLyricsStateChanged = (): void => {
+	const currentView = getReduxState()?.settings?.nowPlayingActiveView ?? null;
+	if (currentView === "lyrics") {
+		if (setNowPlayingActiveView("credits")) {
+			safeTimeout(unloads, () => {
+				setNowPlayingActiveView("lyrics");
+			}, 0);
+		}
+		return;
+	}
+	if (typeof currentView === "string" && currentView.length > 0) {
+		setNowPlayingActiveView(currentView);
+	}
+};
+
+const formatLrcTime = (timeSeconds: number): string => {
+	const safeSeconds = Number.isFinite(timeSeconds) ? Math.max(0, timeSeconds) : 0;
+	const totalMs = Math.round(safeSeconds * 1000);
+	const minutes = Math.floor(totalMs / 60000);
+	const seconds = Math.floor((totalMs % 60000) / 1000);
+	const hundredths = Math.floor((totalMs % 1000) / 10);
+	return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(hundredths).padStart(2, "0")}`;
+};
+
+const buildSyntheticLyricsText = (response: LyricsApiResponse): string =>
+	response.data
+		.map((line) => ("romanized" in line && line.romanized ? line.romanized : line.text))
+		.filter((line) => line.trim().length > 0)
+		.join("\n");
+
+const buildSyntheticLrcText = (response: LyricsApiResponse): string =>
+	response.data
+		.map((line) => {
+			const text =
+				("romanized" in line && line.romanized ? line.romanized : line.text) ?? "";
+			return `${formatLrcTime(line.startTime)}${text}`;
+		})
+		.join("\n");
+
+const registerSyntheticNativeLyrics = (
+	trackInfo: TrackInfo,
+	response: LyricsApiResponse,
+): boolean => {
+	installNativeLyricsOverlay();
+	const track = getNativeTrackEntity(trackInfo.trackId);
+	if (!track) return false;
+
+	syntheticNativeLyrics = {
+		trackId: trackInfo.trackId,
+		lyricsId: `radiant-lyrics-${trackInfo.trackId}`,
+		text: buildSyntheticLyricsText(response),
+		lrcText: buildSyntheticLrcText(response),
+		providerName: `Radiant Lyrics (${response.metadata.source})`,
+		direction: "LEFT_TO_RIGHT",
+		response,
+	};
+	invalidateOverlayCache();
+	notifyNativeLyricsStateChanged();
+	return true;
+};
+
+const clearSyntheticNativeLyrics = (): void => {
+	if (!syntheticNativeLyrics) return;
+	syntheticNativeLyrics = null;
+	invalidateOverlayCache();
+	notifyNativeLyricsStateChanged();
+};
+
+const getLyricsRenderHost = (): {
+	container: HTMLElement;
+	inner: HTMLElement;
+} | null => {
+	const tidalContainer = findLyricsContainer();
+	if (tidalContainer) {
+		const innerDiv = tidalContainer.querySelector(":scope > div") as HTMLElement | null;
+		if (innerDiv) return { container: tidalContainer, inner: innerDiv };
+	}
+
+	const panel = getNowPlayingLyricsPanel();
+	if (!panel) return null;
+
+	const mountParent = panel;
+	let wrapper = Array.from(mountParent.children).find((el) => {
+		if (!(el instanceof HTMLElement) || el.tagName !== "DIV") return false;
+		return !Array.from(el.classList).some((cls) => cls.startsWith("os-scrollbar"));
+	}) as HTMLElement | null;
+	if (!wrapper) {
+		wrapper = document.createElement("div");
+		wrapper.dataset.rlSyntheticCreated = "true";
+		mountParent.insertBefore(wrapper, mountParent.firstChild);
+	}
+
+	let host = wrapper.querySelector(":scope > .rl-native-lyrics-host") as
+		| HTMLElement
+		| null;
+	if (!host) {
+		host = wrapper.querySelector(':scope > [class*="_content_"]') as
+			| HTMLElement
+			| null;
+		if (!host) {
+			host = document.createElement("div");
+			host.dataset.rlSyntheticCreated = "true";
+			wrapper.appendChild(host);
+		}
+	}
+	host.classList.add("rl-native-lyrics-host");
+	host.style.setProperty("display", "block", "important");
+	host.style.setProperty("width", "100%", "important");
+	host.style.setProperty("box-sizing", "border-box", "important");
+	host.style.setProperty("overflow", "visible", "important");
+
+	let inner = host.querySelector(":scope > .rl-native-lyrics-inner") as
+		| HTMLElement
+		| null;
+	if (!inner) {
+		inner = Array.from(host.children).find((el) => {
+			if (!(el instanceof HTMLElement) || el.tagName !== "DIV") return false;
+			return !(el.className || "").toString().includes("_footer_");
+		}) as
+			| HTMLElement
+			| null;
+		if (!inner) {
+			inner = document.createElement("div");
+			inner.dataset.rlSyntheticCreated = "true";
+			const footer = host.querySelector(':scope > [class*="_footer_"]');
+			if (footer?.parentElement === host) host.insertBefore(inner, footer);
+			else host.appendChild(inner);
+		}
+	}
+	inner.classList.add("rl-native-lyrics-inner");
+	inner.style.setProperty("display", "block", "important");
+	inner.style.setProperty("width", "100%", "important");
+	inner.style.setProperty("max-width", "none", "important");
+	inner.style.setProperty("box-sizing", "border-box", "important");
+	inner.style.setProperty("overflow", "visible", "important");
+	inner.style.setProperty("flex", "none", "important");
+
+	return { container: host, inner };
+};
 
 interface WordEntry {
 	el: HTMLSpanElement;
@@ -2075,11 +2044,7 @@ const getPlaybackMs = (): number => {
 };
 
 // get title + artist from media item (Used everywhere now <3)
-const getTrackInfo = async (): Promise<{
-	title: string;
-	artist: string;
-	isrc?: string;
-} | null> => {
+const getTrackInfo = async (): Promise<TrackInfo | null> => {
 	const mi = await MediaItem.fromPlaybackContext();
 	if (!mi?.tidalItem) return null;
 
@@ -2089,9 +2054,10 @@ const getTrackInfo = async (): Promise<{
 	const artist =
 		mi.tidalItem.artist?.name ?? mi.tidalItem.artists?.[0]?.name ?? ""; // REMIX Detection
 	const isrc = mi.tidalItem.isrc ?? undefined;
+	const trackId = String(mi.tidalItem.id ?? PlayState.playbackContext?.actualProductId ?? "");
 
-	if (!baseTitle || !artist) return null;
-	return { title, artist, isrc };
+	if (!baseTitle || !artist || !trackId) return null;
+	return { trackId, title, artist, isrc };
 };
 
 // fetch syllables from the API (wiped on track change)
@@ -2239,9 +2205,7 @@ const normalizeLineData = (data: ApiLine[]): WordLine[] => {
 
 // Scrapes Tidal Line Texts (For Romanization)
 const getTidalLines = (): string[] => {
-	const lyricsContainer = document.querySelector(
-		'[data-test="lyrics-lines"]',
-	) as HTMLElement;
+	const lyricsContainer = findLyricsContainer();
 	if (!lyricsContainer) return [];
 	const innerDiv = lyricsContainer.querySelector(":scope > div") as HTMLElement;
 	if (!innerDiv) return [];
@@ -2323,10 +2287,8 @@ const romanizeLines = async (lineTexts: string[]): Promise<string[] | null> => {
 
 // strip tidal css classes (prevent conflict)
 const hideTidalLyrics = (): boolean => {
-	const lyricsContainer = document.querySelector(
-		'[data-test="lyrics-lines"]',
-	) as HTMLElement;
-	if (!lyricsContainer) return false;
+	const lyricsContainer = findLyricsContainer();
+	if (!lyricsContainer) return !!getLyricsRenderHost();
 
 	// collect _ tidal classes
 	const tidalClasses = Array.from(lyricsContainer.classList).filter((c) =>
@@ -2347,9 +2309,7 @@ const hideTidalLyrics = (): boolean => {
 
 // restore tidal classes (remove our container + cleanup)
 const restoreTidalLyrics = (): void => {
-	const lyricsContainer = document.querySelector(
-		'[data-test="lyrics-lines"]',
-	) as HTMLElement;
+	const lyricsContainer = findLyricsContainer();
 	if (lyricsContainer) {
 		// re-add the exact _ classes
 		if (savedTidalClasses) {
@@ -2380,6 +2340,33 @@ const restoreTidalLyrics = (): void => {
 
 		lyricsContainer.querySelector(".rl-wbw-container")?.remove();
 	}
+	getNowPlayingLyricsPanel()?.querySelectorAll(".rl-native-lyrics-inner").forEach((el) => {
+		if (!(el instanceof HTMLElement)) return;
+		el.querySelector(".rl-wbw-container")?.remove();
+		el.classList.remove("rl-native-lyrics-inner");
+		el.style.removeProperty("display");
+		el.style.removeProperty("width");
+		el.style.removeProperty("max-width");
+		el.style.removeProperty("box-sizing");
+		el.style.removeProperty("overflow");
+		el.style.removeProperty("flex");
+		if (el.dataset.rlSyntheticCreated === "true") {
+			el.remove();
+		}
+		delete el.dataset.rlSyntheticCreated;
+	});
+	getNowPlayingLyricsPanel()?.querySelectorAll(".rl-native-lyrics-host").forEach((el) => {
+		if (!(el instanceof HTMLElement)) return;
+		el.classList.remove("rl-native-lyrics-host", "rl-wbw-active");
+		el.style.removeProperty("display");
+		el.style.removeProperty("width");
+		el.style.removeProperty("box-sizing");
+		el.style.removeProperty("overflow");
+		if (el.dataset.rlSyntheticCreated === "true") {
+			el.remove();
+		}
+		delete el.dataset.rlSyntheticCreated;
+	});
 	savedTidalClasses = null;
 };
 
@@ -2452,13 +2439,10 @@ const buildWordSpans = (): {
 	const lines: LineEntry[] = [];
 	if (!lyricsData) return { lines };
 
-	const lyricsContainer = document.querySelector(
-		'[data-test="lyrics-lines"]',
-	) as HTMLElement;
-	if (!lyricsContainer) return { lines };
-
-	const innerDiv = lyricsContainer.querySelector(":scope > div") as HTMLElement;
-	if (!innerDiv) return { lines };
+	const renderHost = getLyricsRenderHost();
+	if (!renderHost) return { lines };
+	const lyricsContainer = renderHost.container;
+	const innerDiv = renderHost.inner;
 
 	// remove existing container
 	innerDiv.querySelector(".rl-wbw-container")?.remove();
@@ -2480,7 +2464,7 @@ const buildWordSpans = (): {
 	// create lyrics container for word/syllable lines
 	const wbwContainer = document.createElement("div");
 	wbwContainer.className = "rl-wbw-container";
-	if (settings.blurInactive && blurActivated)
+	if (settings.blurInactive && scrollSynced && blurActivated)
 		wbwContainer.classList.add("rl-blur-active");
 	if (settings.bubbledLyrics) wbwContainer.classList.add("rl-bubbled");
 	const effectiveStyle = getLyricsStyle();
@@ -2546,7 +2530,7 @@ const buildWordSpans = (): {
 			"font-size": "calc(40px * var(--rl-font-scale, 1))",
 			"font-family": FONT_STACK,
 			"font-weight": "700",
-			color: "rgba(128, 128, 128, 0.4)",
+			color: "rgba(255, 255, 255, 0.4)",
 			overflow: "visible",
 			flex: "none",
 			"column-count": "auto",
@@ -2792,9 +2776,7 @@ const buildTidalLines = (
 	romanizedLines: string[] | null = null,
 ): { lines: LineEntry[] } => {
 	const lines: LineEntry[] = [];
-	const lyricsContainer = document.querySelector(
-		'[data-test="lyrics-lines"]',
-	) as HTMLElement;
+	const lyricsContainer = findLyricsContainer();
 	if (!lyricsContainer) return { lines };
 
 	const innerDiv = lyricsContainer.querySelector(":scope > div") as HTMLElement;
@@ -2813,7 +2795,7 @@ const buildTidalLines = (
 
 	const wbwContainer = document.createElement("div");
 	wbwContainer.className = "rl-wbw-container";
-	if (settings.blurInactive && blurActivated)
+	if (settings.blurInactive && scrollSynced && blurActivated)
 		wbwContainer.classList.add("rl-blur-active");
 	if (settings.bubbledLyrics) wbwContainer.classList.add("rl-bubbled");
 	forceStyle(wbwContainer, {
@@ -2865,7 +2847,7 @@ const buildTidalLines = (
 			"font-family":
 				'"AbyssFont", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif',
 			"font-weight": "700",
-			color: "rgba(128, 128, 128, 0.4)",
+			color: "rgba(255, 255, 255, 0.4)",
 			overflow: "visible",
 			flex: "none",
 			"column-count": "auto",
@@ -2928,6 +2910,177 @@ const setTidalFallbackLineWordState = (
 	}
 };
 
+const getActiveWbwContainer = (): HTMLElement | null => {
+	const currentLine =
+		primaryLineIdx >= 0 && primaryLineIdx < lines.length
+			? lines[primaryLineIdx]?.el
+			: lines[0]?.el;
+	if (currentLine) {
+		const container = currentLine.closest(".rl-wbw-container");
+		if (container instanceof HTMLElement) return container;
+	}
+	const container = document.querySelector(".rl-wbw-container");
+	return container instanceof HTMLElement ? container : null;
+};
+
+const clearInactiveBlurState = (): void => {
+	const container = getActiveWbwContainer();
+	container?.classList.remove("rl-blur-active");
+	for (const line of lines) {
+		line.el.classList.remove("rl-pos-1", "rl-pos-2", "rl-pos-3", "rl-gap-hold");
+	}
+};
+
+const applyInactiveBlurState = (
+	activeIndex: number,
+	holdLastActive = false,
+	activeSet: ReadonlySet<number> | null = null,
+): void => {
+	if (!settings.blurInactive) return;
+	if (!scrollSynced || !blurActivated) {
+		clearInactiveBlurState();
+		return;
+	}
+	const container = getActiveWbwContainer();
+	container?.classList.add("rl-blur-active");
+	for (const line of lines) {
+		line.el.classList.remove("rl-pos-1", "rl-pos-2", "rl-pos-3", "rl-gap-hold");
+	}
+	if (holdLastActive && primaryLineIdx >= 0 && primaryLineIdx < lines.length) {
+		lines[primaryLineIdx].el.classList.add("rl-gap-hold");
+		return;
+	}
+	if (activeIndex < 0) return;
+	for (let dist = 1; dist <= 3; dist++) {
+		const before = activeIndex - dist;
+		const after = activeIndex + dist;
+		const cls = `rl-pos-${dist}`;
+		if (before >= 0 && !activeSet?.has(before)) lines[before].el.classList.add(cls);
+		if (after < lines.length && !activeSet?.has(after)) lines[after].el.classList.add(cls);
+	}
+};
+
+// Re-apply active line + word state to freshly-built DOM elements after a
+// rebuild (reapply / re-render observer) WITHOUT triggering CSS transitions.
+// This prevents the padding-left "swipe-shift" animation from replaying when
+// the container is reconstructed during scroll-unlock, resync, or React
+// re-renders.
+const applyActiveLineStateNoTransition = (): void => {
+	if (primaryLineIdx < 0 || activeLineIdxs.size === 0 || lines.length === 0) return;
+
+	const effectiveStyle = getLyricsStyle();
+	const isSyl = effectiveStyle === 2;
+	const isLineStyle = effectiveStyle === 0;
+	const CLS_ACTIVE = isSyl ? "rl-syl-active" : "rl-wbw-active";
+	const CLS_FINISHED = isSyl ? "rl-syl-finished" : "rl-wbw-finished";
+
+	// Mark words on past lines as finished (they render unstyled otherwise)
+	for (let li = 0; li < primaryLineIdx && li < lines.length; li++) {
+		for (const w of lines[li].words) w.el.classList.add(CLS_FINISHED);
+		for (const w of lines[li].bgWords) w.el.classList.add(CLS_FINISHED);
+	}
+
+	// Apply active-line classes with transitions suppressed
+	for (const idx of activeLineIdxs) {
+		if (idx >= lines.length) continue;
+		const el = lines[idx].el;
+		el.style.setProperty("transition", "none", "important");
+		el.classList.add("rl-wbw-line-active");
+		el.classList.remove("rl-pos-1", "rl-pos-2", "rl-pos-3");
+		el.setAttribute("data-current", "true");
+	}
+
+	// Restore word-level state on active lines so the tick loop doesn't flash
+	const nowMs = getPlaybackMs();
+	activeWordEls.clear();
+	activeBgWordEls.clear();
+
+	for (const lineIdx of activeLineIdxs) {
+		if (lineIdx >= lines.length) continue;
+		const currentLine = lines[lineIdx];
+
+		if (isLineStyle) {
+			for (const w of currentLine.words) {
+				w.el.style.setProperty("transition", "none", "important");
+				w.el.classList.add(CLS_ACTIVE);
+				activeWordEls.set(lineIdx, w.el);
+			}
+		} else {
+			let activeWordIdx = -1;
+			for (let i = currentLine.words.length - 1; i >= 0; i--) {
+				if (nowMs >= currentLine.words[i].start) {
+					activeWordIdx = i;
+					break;
+				}
+			}
+			for (let i = 0; i < currentLine.words.length; i++) {
+				const w = currentLine.words[i];
+				w.el.style.setProperty("transition", "none", "important");
+				if (i < activeWordIdx) {
+					w.el.classList.add(CLS_FINISHED);
+				} else if (i === activeWordIdx) {
+					if (isSyl) {
+						const elapsed = nowMs - w.start;
+						if (elapsed >= w.duration) {
+							w.el.classList.add(CLS_FINISHED);
+						} else {
+							w.el.classList.add("rl-syl-active");
+							w.el.style.animation = `rl-wipe ${w.duration}ms linear forwards`;
+							w.el.style.animationDelay = `-${elapsed}ms`;
+						}
+					} else {
+						w.el.classList.add(CLS_ACTIVE);
+					}
+					activeWordEls.set(lineIdx, w.el);
+				}
+			}
+
+			// Background words
+			let activeBgIdx = -1;
+			for (let i = currentLine.bgWords.length - 1; i >= 0; i--) {
+				if (nowMs >= currentLine.bgWords[i].start) {
+					activeBgIdx = i;
+					break;
+				}
+			}
+			for (let i = 0; i < currentLine.bgWords.length; i++) {
+				const w = currentLine.bgWords[i];
+				w.el.style.setProperty("transition", "none", "important");
+				if (i < activeBgIdx) {
+					w.el.classList.add(CLS_FINISHED);
+				} else if (i === activeBgIdx) {
+					if (isSyl) {
+						const elapsed = nowMs - w.start;
+						if (elapsed >= w.duration) {
+							w.el.classList.add(CLS_FINISHED);
+						} else {
+							w.el.classList.add("rl-syl-active");
+							w.el.style.animation = `rl-wipe ${w.duration}ms linear forwards`;
+							w.el.style.animationDelay = `-${elapsed}ms`;
+						}
+					} else {
+						w.el.classList.add(CLS_ACTIVE);
+					}
+					activeBgWordEls.set(lineIdx, w.el);
+				}
+			}
+		}
+	}
+
+	// Force reflow so the suppressed transitions take effect, then restore them
+	void document.body.offsetHeight;
+	for (const line of lines) {
+		line.el.style.removeProperty("transition");
+		for (const w of line.words) w.el.style.removeProperty("transition");
+		for (const w of line.bgWords) w.el.style.removeProperty("transition");
+	}
+
+	// Re-apply blur positioning
+	if (settings.blurInactive && scrollSynced && blurActivated) {
+		applyInactiveBlurState(primaryLineIdx, false, activeLineIdxs);
+	}
+};
+
 const updateTidalFollowActiveLine = (): void => {
 	if (!isActive || lyricsMode !== "line-tidal" || lines.length === 0) return;
 
@@ -2935,7 +3088,7 @@ const updateTidalFollowActiveLine = (): void => {
 	for (let i = 0; i < lines.length; i++) {
 		const tidalSpan = lines[i].tidalSpan;
 		if (!tidalSpan) continue;
-		if (tidalSpan.getAttribute("data-current") === "true") {
+		if (isTidalSpanActive(tidalSpan)) {
 			activeIndex = i;
 			break;
 		}
@@ -2962,37 +3115,18 @@ const updateTidalFollowActiveLine = (): void => {
 	primaryLineIdx = activeIndex;
 	activeLineIdxs = newActiveSet;
 
-	if (settings.blurInactive && !blurActivated) {
+	if (settings.blurInactive && scrollSynced && !blurActivated) {
 		blurActivated = true;
-		document
-			.querySelector(".rl-wbw-container")
-			?.classList.add("rl-blur-active");
 	}
 
-	if (settings.blurInactive) {
-		for (let i = 0; i < lines.length; i++) {
-			lines[i].el.classList.remove(
-				"rl-pos-1",
-				"rl-pos-2",
-				"rl-pos-3",
-				"rl-gap-hold",
-			);
-		}
-		for (let dist = 1; dist <= 3; dist++) {
-			const before = activeIndex - dist;
-			const after = activeIndex + dist;
-			const cls = `rl-pos-${dist}`;
-			if (before >= 0) lines[before].el.classList.add(cls);
-			if (after < lines.length) lines[after].el.classList.add(cls);
-		}
-	}
+	applyInactiveBlurState(activeIndex);
 
 	if (activeIndex !== prevPrimary) {
 		const newLine = lines[activeIndex];
 		const scrollParent = findScroller(newLine.el);
-		lockScroll(scrollParent);
-		hookUserScroll(scrollParent);
 		if (scrollSynced) {
+			lockScroll(scrollParent);
+			hookUserScroll(scrollParent);
 			const lineRect = newLine.el.getBoundingClientRect();
 			const parentRect = scrollParent.getBoundingClientRect();
 			const targetOffset = parentRect.height * 0.2;
@@ -3020,9 +3154,7 @@ const updateTidalFollowActiveLine = (): void => {
 
 const startTidalFollowLoop = (): void => {
 	stopTidalFollowLoop();
-	const lyricsContainer = document.querySelector(
-		'[data-test="lyrics-lines"]',
-	) as HTMLElement;
+	const lyricsContainer = findLyricsContainer();
 	if (!lyricsContainer) return;
 
 	tidalFollowObserver = new MutationObserver(() => {
@@ -3032,7 +3164,7 @@ const startTidalFollowLoop = (): void => {
 		subtree: true,
 		childList: true,
 		attributes: true,
-		attributeFilter: ["data-current"],
+		attributeFilter: ["class"],
 	});
 
 	updateTidalFollowActiveLine();
@@ -3042,13 +3174,11 @@ const startTidalFollowLoop = (): void => {
 const watchForRerender = (): void => {
 	unwatchRerender();
 
-	const lyricsContainer = document.querySelector(
-		'[data-test="lyrics-lines"]',
-	) as HTMLElement;
+	const lyricsContainer =
+		getLyricsRenderHost()?.container ?? getNowPlayingLyricsPanel();
 	if (!lyricsContainer) return;
 
 	rerenderObserver = new MutationObserver(() => {
-		// tidal fire mutations in bursts
 		if (rerenderDebounce !== null) {
 			clearTimeout(rerenderDebounce);
 		}
@@ -3056,7 +3186,6 @@ const watchForRerender = (): void => {
 			rerenderDebounce = null;
 			if (!isActive || lyricsMode === "none") return;
 
-			// check if our container has been nuked by a react re-render (thx react again again..)
 			const existing = lyricsContainer.querySelector(".rl-wbw-container");
 			if (!existing) {
 				sylTrace("Lyrics overlay: re-applying after Tidal re-render");
@@ -3064,10 +3193,12 @@ const watchForRerender = (): void => {
 				if (lyricsMode === "line-tidal") {
 					const result = buildTidalLines(cachedTidalRomanizedLines);
 					lines = result.lines;
+					applyActiveLineStateNoTransition();
 					startTidalFollowLoop();
 				} else if (lyricsData) {
 					const result = buildWordSpans();
 					lines = result.lines;
+					applyActiveLineStateNoTransition();
 				}
 			}
 		}, 100);
@@ -3102,7 +3233,6 @@ const teardown = (): void => {
 	trackChangeToken++;
 	clearTickLoop();
 	stopTidalFollowLoop();
-	clearInjectedLyricsTab();
 	clearScrollAnim();
 	unwatchRerender();
 	unhookUserScroll();
@@ -3121,11 +3251,19 @@ const teardown = (): void => {
 	primaryLineIdx = -1;
 	clearLineSlideTimers();
 	clearLineSlideTimers();
+	clearSyntheticNativeLyrics();
 	restoreTidalLyrics();
 };
 
 // find scrollable parent
 const findScroller = (el: HTMLElement): HTMLElement => {
+	const lyricsPanel = el.closest(
+		'[data-test="now-playing-lyrics"]',
+	) as HTMLElement | null;
+	if (lyricsPanel && lyricsPanel.scrollHeight > lyricsPanel.clientHeight) {
+		return lyricsPanel;
+	}
+
 	let parent = el.parentElement;
 	while (parent) {
 		const style = window.getComputedStyle(parent);
@@ -3133,7 +3271,8 @@ const findScroller = (el: HTMLElement): HTMLElement => {
 			style.overflowY === "auto" ||
 			style.overflowY === "scroll" ||
 			style.overflow === "auto" ||
-			style.overflow === "scroll"
+			style.overflow === "scroll" ||
+			parent.scrollHeight > parent.clientHeight + 1
 		) {
 			return parent;
 		}
@@ -3227,16 +3366,11 @@ const scrollToActiveLine = (): void => {
 // Resync lyric scroll (scrubbing and lyric jumps)
 const resync = (): void => {
 	scrollSynced = true;
-	if (settings.blurInactive && blurActivated) {
-		document
-			.querySelector(".rl-wbw-container")
-			?.classList.add("rl-blur-active");
-	}
+	applyInactiveBlurState(primaryLineIdx, activeLineIdxs.size === 0, activeLineIdxs);
 	scrollToActiveLine();
-	const tidalSyncBtn = document.querySelector(
-		'div[class*="_syncButton"] button',
-	) as HTMLElement;
-	if (tidalSyncBtn) tidalSyncBtn.click();
+	if (syncButtonEl) {
+		syncButtonEl.click();
+	}
 	unhookSyncButton();
 	sylLog("[RL-Syllable] Scroll resynced");
 };
@@ -3247,11 +3381,11 @@ const hookUserScroll = (parent: HTMLElement): void => {
 	const onUserScroll = () => {
 		if (!scrollSynced) return;
 		scrollSynced = false;
+		clearScrollAnim();
 		if (settings.blurInactive) {
-			document
-				.querySelector(".rl-wbw-container")
-				?.classList.remove("rl-blur-active");
+			clearInactiveBlurState();
 		}
+		hookSyncButton();
 		sylLog("[RL-Syllable] User scrolled — auto-scroll unhooked");
 	};
 	parent.addEventListener("wheel", onUserScroll, { passive: true });
@@ -3317,12 +3451,14 @@ const startTickLoop = (): void => {
 				lastTickMs >= 0 && (timeDelta < -100 || timeDelta > 1000);
 			lastTickMs = nowMs;
 
-			// remove data-current from tidals hidden spans
-			const tidalCurrentSpans = document.querySelectorAll(
-				'span[data-test="lyrics-line"][data-current]',
+			// strip active state from tidal's hidden spans to prevent style conflicts
+			const tidalSpans = document.querySelectorAll(
+				'span[data-test="lyrics-line"]',
 			);
-			for (const span of tidalCurrentSpans) {
-				span.removeAttribute("data-current");
+			for (const span of tidalSpans) {
+				for (const cls of Array.from(span.classList)) {
+					if (cls.startsWith("_current_")) span.classList.remove(cls);
+				}
 			}
 
 			if (!isLineStyle && nowMs - lastLogTime >= 1000) {
@@ -3436,25 +3572,18 @@ const startTickLoop = (): void => {
 			}
 
 			// activate blur on first lyric of the track
-			if (settings.blurInactive && !blurActivated && newActiveSet.size > 0) {
+			if (
+				settings.blurInactive &&
+				scrollSynced &&
+				!blurActivated &&
+				newActiveSet.size > 0
+			) {
 				blurActivated = true;
-				document
-					.querySelector(".rl-wbw-container")
-					?.classList.add("rl-blur-active");
 			}
 
 			// instrumental gaps, keep the last-active line unblurred
-			if (settings.blurInactive) {
-				if (
-					newActiveSet.size === 0 &&
-					primaryLineIdx >= 0 &&
-					primaryLineIdx < lines.length
-				) {
-					lines[primaryLineIdx].el.classList.add("rl-gap-hold");
-				} else if (newActiveSet.size > 0) {
-					const held = document.querySelector(".rl-gap-hold");
-					if (held) held.classList.remove("rl-gap-hold");
-				}
+			if (settings.blurInactive && newActiveSet.size === 0) {
+				applyInactiveBlurState(primaryLineIdx, true, newActiveSet);
 			}
 
 			activeLineIdxs = newActiveSet;
@@ -3465,10 +3594,10 @@ const startTickLoop = (): void => {
 				primaryLineIdx = newPrimary;
 				const newLine = lines[primaryLineIdx];
 				const scrollParent = findScroller(newLine.el);
-				lockScroll(scrollParent);
-				hookUserScroll(scrollParent);
 
 				if (scrollSynced) {
+					lockScroll(scrollParent);
+					hookUserScroll(scrollParent);
 					const lineRect = newLine.el.getBoundingClientRect();
 					const parentRect = scrollParent.getBoundingClientRect();
 					const targetOffset = parentRect.height * 0.2;
@@ -3497,20 +3626,7 @@ const startTickLoop = (): void => {
 				}
 
 				// distance-based blur position classes (skip active lines)
-				if (settings.blurInactive) {
-					for (let i = 0; i < lines.length; i++) {
-						lines[i].el.classList.remove("rl-pos-1", "rl-pos-2", "rl-pos-3");
-					}
-					for (let dist = 1; dist <= 3; dist++) {
-						const before = newPrimary - dist;
-						const after = newPrimary + dist;
-						const cls = `rl-pos-${dist}`;
-						if (before >= 0 && !newActiveSet.has(before))
-							lines[before].el.classList.add(cls);
-						if (after < lines.length && !newActiveSet.has(after))
-							lines[after].el.classList.add(cls);
-					}
-				}
+				applyInactiveBlurState(newPrimary, false, newActiveSet);
 			}
 
 			// hook lyric scroll sync button
@@ -3663,6 +3779,7 @@ const onTrackChange = async (): Promise<void> => {
 			trace.log("could not get track info from playback state");
 			return;
 		}
+		const nativeHasLyrics = trackHasNativeLyrics(trackInfo.trackId);
 
 		sylTrace(
 			`RL API: looking up "${trackInfo.title}" by "${trackInfo.artist}"${trackInfo.isrc ? ` (ISRC: ${trackInfo.isrc})` : ""}`,
@@ -3700,6 +3817,20 @@ const onTrackChange = async (): Promise<void> => {
 			return;
 		}
 
+		if (!nativeHasLyrics) {
+			const unlocked = registerSyntheticNativeLyrics(trackInfo, response);
+			if (!unlocked) {
+				trace.warn(
+					`RL API: found API lyrics for "${trackInfo.title}" but could not unlock native lyrics state`,
+				);
+				teardown();
+				return;
+			}
+			sylLog(
+				`[RL-Syllable] Registered synthetic native lyrics for "${trackInfo.title}"`,
+			);
+		}
+
 		sylTrace(
 			`RL API: loaded ${response.data.length} lines (source: ${response.metadata.source})`,
 		);
@@ -3708,15 +3839,7 @@ const onTrackChange = async (): Promise<void> => {
 		);
 
 		lyricsMode = response.type === "Word" ? "word" : "line-api";
-		if (!(await ensureLyricsTab())) {
-			trace.log("Could not create/find lyrics tab container");
-			teardown();
-			return;
-		}
 		if (token !== trackChangeToken) return;
-		if (injectedTabEl && settings.stickyLyrics) {
-			showInjectedLyricsTab();
-		}
 		lyricsData =
 			response.type === "Word"
 				? response.data
@@ -3732,15 +3855,25 @@ const onTrackChange = async (): Promise<void> => {
 		// Remove Tidal classes
 		hideTidalLyrics();
 
-		// Build word spans and line entries
-		const result = buildWordSpans();
-		lines = result.lines;
-
-		// Watch React re-renders
-		watchForRerender();
-
-		// Start the highlight loop
-		startTickLoop();
+		// Build word spans only once the native panel has mounted.
+		const lyricsPanel = getNowPlayingLyricsPanel();
+		if (lyricsPanel) {
+			const result = buildWordSpans();
+			lines = result.lines;
+			watchForRerender();
+			startTickLoop();
+		} else {
+			watchForRerender();
+			if (!nativeHasLyrics || settings.stickyLyrics || currentTrackWantsLyricsPanel()) {
+				safeTimeout(unloads, () => {
+					if (token !== trackChangeToken) return;
+					syncNativeLyricsAvailability();
+					if (settings.stickyLyrics) {
+						tryActivateStickyLyricsTab();
+					}
+				}, 0);
+			}
+		}
 	} finally {
 		if (runId === trackChangeRunSeq) {
 			isTrackChangeRunning = false;
@@ -3751,6 +3884,9 @@ const onTrackChange = async (): Promise<void> => {
 // Reapply word lyrics (for tab switch back)
 const reapplyWordLyrics = (): void => {
 	if (!lyricsData) return;
+
+	const savedPrimary = primaryLineIdx;
+	const savedActive = new Set(activeLineIdxs);
 
 	clearTickLoop();
 	clearScrollAnim();
@@ -3769,12 +3905,20 @@ const reapplyWordLyrics = (): void => {
 	hideTidalLyrics();
 	const result = buildWordSpans();
 	lines = result.lines;
+
+	primaryLineIdx = savedPrimary;
+	activeLineIdxs = savedActive;
+	applyActiveLineStateNoTransition();
+
 	watchForRerender();
 	startTickLoop();
 	sylLog("[RL-Syllable] Reapplied word/syllable lyrics (cached)");
 };
 
 const reapplyTidalLines = async (): Promise<void> => {
+	const savedPrimary = primaryLineIdx;
+	const savedActive = new Set(activeLineIdxs);
+
 	clearTickLoop();
 	stopTidalFollowLoop();
 	clearScrollAnim();
@@ -3797,6 +3941,11 @@ const reapplyTidalLines = async (): Promise<void> => {
 	const result = buildTidalLines(romanized);
 	lines = result.lines;
 	if (lines.length === 0) return;
+
+	primaryLineIdx = savedPrimary;
+	activeLineIdxs = savedActive;
+	applyActiveLineStateNoTransition();
+
 	watchForRerender();
 	startTidalFollowLoop();
 	sylLog("[RL-Syllable] Reapplied TIDAL line lyrics (fallback)");
@@ -3862,10 +4011,10 @@ const setupTrackChangeListener = (): void => {
 };
 
 function setupHeaderObserver(): void {
-	const existing = document.querySelector('[data-test="header-container"]');
+	const existing = document.querySelector('[data-test="header"]');
 	if (existing && !document.querySelector(".hide-ui-button"))
 		createHideUIButton();
-	observe<HTMLElement>(unloads, '[data-test="header-container"]', () => {
+	observe<HTMLElement>(unloads, '[data-test="header"]', () => {
 		if (!document.querySelector(".hide-ui-button")) createHideUIButton();
 	});
 }
@@ -3881,7 +4030,7 @@ function setupNowPlayingObserver(): void {
 
 function setupTrackTitleObserver(): void {
 	const trackTitleEl = document.querySelector(
-		'[data-test="now-playing-track-title"]',
+		'[data-test="new-now-playing"] [class*="_titleContainer_"]',
 	) as HTMLElement | null;
 	if (trackTitleEl) {
 		if (settings.trackTitleGlow && settings.lyricsGlowEnabled) {
@@ -3892,8 +4041,11 @@ function setupTrackTitleObserver(): void {
 	}
 	observe<HTMLElement>(
 		unloads,
-		'[data-test="now-playing-track-title"]',
-		(el) => {
+		'[data-test="new-now-playing"]',
+		() => {
+			const el = document.querySelector(
+				'[data-test="new-now-playing"] [class*="_titleContainer_"]',
+			) as HTMLElement | null;
 			if (!el) return;
 			if (settings.trackTitleGlow && settings.lyricsGlowEnabled) {
 				el.classList.remove("rl-title-glow-disabled");

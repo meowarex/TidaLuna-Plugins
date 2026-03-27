@@ -43,6 +43,18 @@
 	backface-visibility: hidden;
 }
 
+/* Hide Tidal's native now-playing background color overlay */
+[data-test="new-now-playing"] > [class*="_background_"] {
+	/* biome-ignore lint: Must override native album-art-derived background */
+	display: none !important;
+}
+
+/* Ensure the now-playing container itself is transparent */
+[class*="_nowPlayingContainer"] {
+	/* biome-ignore lint: Must override any inline background styles */
+	background: transparent !important;
+}
+
 /* Now Playing Background Container Optimization */
 .now-playing-background-container {
 	position: absolute;
@@ -50,12 +62,20 @@
 	top: 0;
 	width: 100%;
 	height: 100%;
-	z-index: -3;
+	z-index: 0;
 	pointer-events: none;
 	overflow: hidden;
 	/* Hardware acceleration */
 	transform: translateZ(0);
 	backface-visibility: hidden;
+}
+
+/* Ensure now-playing content renders above the dynamic background */
+[data-test="new-now-playing"] > header,
+[data-test="new-now-playing"] > [class*="_content_"],
+[data-test="new-now-playing"] > .unhide-ui-button {
+	position: relative;
+	z-index: 1;
 }
 
 /* Optimized keyframe animations with GPU acceleration */

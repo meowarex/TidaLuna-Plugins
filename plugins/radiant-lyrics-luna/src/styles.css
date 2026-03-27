@@ -20,18 +20,22 @@
 
 /* MARKER: HideUI CSS*/
 
-/* Only apply styles when UI is hidden */
-.radiant-lyrics-ui-hidden [class*="tabItems"] {
+/* Only apply styles when UI is hidden — hide toggle buttons */
+.radiant-lyrics-ui-hidden [data-test="toggle-lyrics"],
+.radiant-lyrics-ui-hidden [data-test="toggle-credits"],
+.radiant-lyrics-ui-hidden [data-test="toggle-similar-tracks"] {
 	opacity: 0 !important;
 	transition: opacity 0.4s ease-in-out;
 }
 
-.radiant-lyrics-ui-hidden [class*="tabItems"]:hover {
+.radiant-lyrics-ui-hidden [data-test="toggle-lyrics"]:hover,
+.radiant-lyrics-ui-hidden [data-test="toggle-credits"]:hover,
+.radiant-lyrics-ui-hidden [data-test="toggle-similar-tracks"]:hover {
 	opacity: 1 !important;
 }
 
 /* Hide header container (search, minimize, fullscreen) when UI is hidden */
-.radiant-lyrics-ui-hidden [data-test="header-container"] {
+.radiant-lyrics-ui-hidden [data-test="header"] {
 	opacity: 0 !important;
 	visibility: hidden !important;
 	transition: opacity 0.4s ease-in-out, visibility 0s linear 0.4s;
@@ -79,8 +83,8 @@
 
 /* MARKER: Sticky Lyrics CSS */
 
-/* Lyrics tab */
-[data-test="tabs-lyrics"]:has(.sticky-lyrics-trigger) {
+/* Lyrics toggle button */
+[data-test="toggle-lyrics"]:has(.sticky-lyrics-trigger) {
 	position: relative !important;
 	padding-right: 38px !important;
 }
@@ -115,35 +119,36 @@
 	transition: background 0.2s ease;
 }
 
-/* When Lyrics tab is active — show divider & make icon black*/
-[data-test="tabs-lyrics"][aria-selected="true"] .sticky-lyrics-trigger {
-	color: black;
+/* When Lyrics toggle is pressed — show divider & adjust icon */
+[data-test="toggle-lyrics"][aria-pressed="true"] .sticky-lyrics-trigger {
+	color: white;
 	cursor: pointer;
 }
 
-[data-test="tabs-lyrics"][aria-selected="true"] .sticky-lyrics-trigger::before {
-	background: rgba(0, 0, 0, 0.25);
+[data-test="toggle-lyrics"][aria-pressed="true"] .sticky-lyrics-trigger::before {
+	background: rgba(255, 255, 255, 0.25);
 }
 
-[data-test="tabs-lyrics"][aria-selected="true"] .sticky-lyrics-trigger:hover {
-	color: rgba(0, 0, 0, 0.6);
+[data-test="toggle-lyrics"][aria-pressed="true"] .sticky-lyrics-trigger:hover {
+	color: rgba(255, 255, 255, 0.6);
 }
 
-/* Square the Lyrics button bottom corners when dropdown is open */
-[data-test="tabs-lyrics"].sticky-lyrics-open {
-	border-bottom-left-radius: 0 !important;
+/* Square the Lyrics button bottom-right corner when dropdown is open (right-aligned) */
+[data-test="toggle-lyrics"].sticky-lyrics-open {
 	border-bottom-right-radius: 0 !important;
 }
 
-/* Dropdown */
+/* Dropdown — right-aligned under the Lyrics button */
 .sticky-lyrics-dropdown {
 	position: fixed;
-	background: white;
-	border-radius: 0 0 16px 16px;
+	background: rgba(30, 30, 30, 0.92);
+	backdrop-filter: blur(20px);
+	-webkit-backdrop-filter: blur(20px);
+	border-radius: 16px 0 16px 16px;
 	padding: 8px 12px 10px;
 	box-sizing: border-box;
 	z-index: 10000;
-	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
 	clip-path: inset(0 -20px -20px -20px);
 	animation: stickyLyricsDropdownIn 0.12s ease-out;
 }
@@ -170,7 +175,7 @@
 .sticky-lyrics-label {
 	font-size: 11px;
 	font-weight: 600;
-	color: rgba(0, 0, 0, 1);
+	color: rgba(255, 255, 255, 0.9);
 	white-space: nowrap;
 }
 
@@ -196,7 +201,7 @@
 	left: 0;
 	right: 0;
 	bottom: 0;
-	background-color: rgba(0, 0, 0, 0.2);
+	background-color: rgba(255, 255, 255, 0.2);
 	transition: 0.3s;
 	border-radius: 18px;
 }
@@ -215,11 +220,12 @@
 }
 
 .sticky-lyrics-switch input:checked + .sticky-lyrics-slider {
-	background-color: black;
+	background-color: rgb(255, 255, 255);
 }
 
 .sticky-lyrics-switch input:checked + .sticky-lyrics-slider::before {
 	transform: translateX(16px);
+	background-color: rgb(30, 30, 30);
 }
 
 /* Segmented control (Line | Word | Syllable) */
@@ -230,7 +236,7 @@
 
 .rl-seg-control {
 	display: flex;
-	background: rgba(0, 0, 0, 0.08);
+	background: rgba(255, 255, 255, 0.08);
 	border-radius: 10px;
 	padding: 2px;
 	gap: 2px;
@@ -241,7 +247,7 @@
 	flex: 1;
 	border: none;
 	background: transparent;
-	color: rgba(0, 0, 0, 0.5);
+	color: rgba(255, 255, 255, 0.5);
 	font-size: 10px;
 	font-weight: 600;
 	padding: 5px 0;
@@ -252,14 +258,14 @@
 }
 
 .rl-seg-btn:hover {
-	color: rgba(0, 0, 0, 0.7);
-	background: rgba(0, 0, 0, 0.05);
+	color: rgba(255, 255, 255, 0.8);
+	background: rgba(255, 255, 255, 0.08);
 }
 
 .rl-seg-btn.rl-seg-active {
-	background: white;
-	color: black;
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+	background: rgba(255, 255, 255, 0.9);
+	color: rgb(16, 16, 16);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* MARKER: PATCHES (Random Fixes for Tidals Changes) */
