@@ -1146,7 +1146,6 @@ const updateStickyLyricsFeature = (): void => {
 
 let stickyDropdownEl: HTMLElement | null = null;
 let stickyDropdownOpen = false;
-const DROPDOWN_WIDTH = 150;
 
 const positionDropdown = (): void => {
 	if (!stickyDropdownEl) return;
@@ -1550,8 +1549,7 @@ const findLyricsContainer = (): HTMLElement | null => {
 };
 
 // Check whether a tidal lyrics span is currently the active/highlighted line.
-// Old UI used data-current="true"; new player-market UI uses a CSS class
-// matching _current_*.
+// Player-market UI uses a CSS class matching _current_*.
 const isTidalSpanActive = (span: HTMLElement): boolean => {
 	return Array.from(span.classList).some((c) => c.startsWith("_current_"));
 };
