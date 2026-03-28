@@ -121,34 +121,39 @@
 
 /* When Lyrics toggle is pressed — show divider & adjust icon */
 [data-test="toggle-lyrics"][aria-pressed="true"] .sticky-lyrics-trigger {
-	color: white;
+	color: rgb(30, 30, 30);
 	cursor: pointer;
 }
 
 [data-test="toggle-lyrics"][aria-pressed="true"] .sticky-lyrics-trigger::before {
-	background: rgba(255, 255, 255, 0.25);
+	background: rgba(0, 0, 0, 0.15);
 }
 
 [data-test="toggle-lyrics"][aria-pressed="true"] .sticky-lyrics-trigger:hover {
-	color: rgba(255, 255, 255, 0.6);
+	color: rgba(0, 0, 0, 0.5);
 }
 
-/* Square the Lyrics button bottom-right corner when dropdown is open (right-aligned) */
-[data-test="toggle-lyrics"].sticky-lyrics-open {
-	border-bottom-right-radius: 0 !important;
+/* Animate widening when dropdown opens */
+[data-test="toggle-lyrics"]:has(.sticky-lyrics-trigger) {
+	transition: min-width 0.12s ease-out;
+}
+
+/* Reduce top rounding, square bottom, and kill hover tint when dropdown is open */
+body.rl-dropdown-open [data-test="toggle-lyrics"] {
+	border-radius: 12px 12px 0 0 !important;
+	background-color: rgb(255, 255, 255) !important;
+	min-width: 150px !important;
 }
 
 /* Dropdown — right-aligned under the Lyrics button */
 .sticky-lyrics-dropdown {
 	position: fixed;
-	background: rgba(30, 30, 30, 0.92);
-	backdrop-filter: blur(20px);
-	-webkit-backdrop-filter: blur(20px);
-	border-radius: 16px 0 16px 16px;
+	background: rgb(255, 255, 255);
+	border-radius: 0 0 12px 12px;
 	padding: 8px 12px 10px;
 	box-sizing: border-box;
 	z-index: 10000;
-	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
 	clip-path: inset(0 -20px -20px -20px);
 	animation: stickyLyricsDropdownIn 0.12s ease-out;
 }
@@ -156,11 +161,11 @@
 @keyframes stickyLyricsDropdownIn {
 	from {
 		opacity: 0;
-		clip-path: inset(0 0 100% 0);
+		transform: translateY(-4px);
 	}
 	to {
 		opacity: 1;
-		clip-path: inset(0 0 0 0);
+		transform: translateY(0);
 	}
 }
 
@@ -175,7 +180,7 @@
 .sticky-lyrics-label {
 	font-size: 11px;
 	font-weight: 600;
-	color: rgba(255, 255, 255, 0.9);
+	color: rgba(0, 0, 0, 0.8);
 	white-space: nowrap;
 }
 
@@ -201,7 +206,7 @@
 	left: 0;
 	right: 0;
 	bottom: 0;
-	background-color: rgba(255, 255, 255, 0.2);
+	background-color: rgba(0, 0, 0, 0.15);
 	transition: 0.3s;
 	border-radius: 18px;
 }
@@ -216,16 +221,16 @@
 	background-color: white;
 	transition: 0.3s;
 	border-radius: 50%;
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 .sticky-lyrics-switch input:checked + .sticky-lyrics-slider {
-	background-color: rgb(255, 255, 255);
+	background-color: rgb(30, 30, 30);
 }
 
 .sticky-lyrics-switch input:checked + .sticky-lyrics-slider::before {
 	transform: translateX(16px);
-	background-color: rgb(30, 30, 30);
+	background-color: rgb(255, 255, 255);
 }
 
 /* Segmented control (Line | Word | Syllable) */
@@ -236,7 +241,7 @@
 
 .rl-seg-control {
 	display: flex;
-	background: rgba(255, 255, 255, 0.08);
+	background: rgba(0, 0, 0, 0.06);
 	border-radius: 10px;
 	padding: 2px;
 	gap: 2px;
@@ -247,7 +252,7 @@
 	flex: 1;
 	border: none;
 	background: transparent;
-	color: rgba(255, 255, 255, 0.5);
+	color: rgba(0, 0, 0, 0.4);
 	font-size: 10px;
 	font-weight: 600;
 	padding: 5px 0;
@@ -258,18 +263,26 @@
 }
 
 .rl-seg-btn:hover {
-	color: rgba(255, 255, 255, 0.8);
-	background: rgba(255, 255, 255, 0.08);
+	color: rgba(0, 0, 0, 0.7);
+	background: rgba(0, 0, 0, 0.06);
 }
 
 .rl-seg-btn.rl-seg-active {
-	background: rgba(255, 255, 255, 0.9);
-	color: rgb(16, 16, 16);
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+	background: rgb(30, 30, 30);
+	color: rgb(255, 255, 255);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 /* MARKER: PATCHES (Random Fixes for Tidals Changes) */
 /* These change allot so i gave them their own section */
+
+/* Remove max-width cap on now-playing content - NEW UI*/
+[class*="_contentInner"] {
+	max-width: none !important;
+}
+
+
+/* LEGACY UI */
 
 /* Fixes the new Sticky Header Tidal added.. in the shittest jankiest way possible */
 /* [class*="_stickyHeader"] {
@@ -303,13 +316,13 @@
 	width: 0px !important;
 } */
 
-
-/* Remove the background color from the small header */
+/* 
+Remove the background color from the small header
 [class*="_smallHeader"]::before {
 	background-color: transparent !important;
 }
 
-/* fixes Tidals broken mini cover art padding | Cheers Aya <3*/
+Fixes Tidals broken mini cover art padding | Cheers Aya <3
 ._imageBorder_110890a {
 	filter: opacity(0);
 }
@@ -354,4 +367,4 @@
 	._notFullscreenOverlay_1442d60 ._nowPlayingButton_c1a86fa {
 		background-color: rgba(245, 245, 220, 0);
 	}
-}
+} */

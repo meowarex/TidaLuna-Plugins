@@ -1060,7 +1060,7 @@ const STICKY_ICONS: Record<string, string> = {
 	chevron:
 		'<svg viewBox="0 0 24 24" width="10" height="10" fill="none"><path fill-rule="evenodd" clip-rule="evenodd" d="M4.29289 8.29289C4.68342 7.90237 5.31658 7.90237 5.70711 8.29289L12 14.5858L18.2929 8.29289C18.6834 7.90237 19.3166 7.90237 19.7071 8.29289C20.0976 8.68342 20.0976 9.31658 19.7071 9.70711L12.7071 16.7071C12.3166 17.0976 11.6834 17.0976 11.2929 16.7071L4.29289 9.70711C3.90237 9.31658 3.90237 8.68342 4.29289 8.29289Z" fill="currentColor"/></svg>',
 	sparkle:
-		'<svg viewBox="0 0 512 512" width="12" height="12"><path fill="currentColor" d="M208,512a24.84,24.84,0,0,1-23.34-16l-39.84-103.6a16.06,16.06,0,0,0-9.19-9.19L32,343.34a25,25,0,0,1,0-46.68l103.6-39.84a16.06,16.06,0,0,0,9.19-9.19L184.66,144a25,25,0,0,1,46.68,0l39.84,103.6a16.06,16.06,0,0,0,9.19,9.19l103,39.63A25.49,25.49,0,0,1,400,320.52a24.82,24.82,0,0,1-16,22.82l-103.6,39.84a16.06,16.06,0,0,0-9.19,9.19L231.34,496A24.84,24.84,0,0,1,208,512Zm66.85-254.84h0Z"/><path fill="currentColor" d="M88,176a14.67,14.67,0,0,1-13.69-9.4L57.45,122.76a7.28,7.28,0,0,0-4.21-4.21L9.4,101.69a14.67,14.67,0,0,1,0-27.38L53.24,57.45a7.31,7.31,0,0,0,4.21-4.21L74.16,9.79A15,15,0,0,1,86.23.11,14.67,14.67,0,0,1,101.69,9.4l16.86,43.84a7.31,7.31,0,0,0,4.21,4.21L166.6,74.31a14.67,14.67,0,0,1,0,27.38l-43.84,16.86a7.28,7.28,0,0,0-4.21,4.21L101.69,166.6A14.67,14.67,0,0,1,88,176Z"/><path fill="currentColor" d="M400,256a16,16,0,0,1-14.93-10.26l-22.84-59.37a8,8,0,0,0-4.6-4.6l-59.37-22.84a16,16,0,0,1,0-29.86l59.37-22.84a8,8,0,0,0,4.6-4.6L384.9,42.68a16.45,16.45,0,0,1,13.17-10.57,16,16,0,0,1,16.86,10.15l22.84,59.37a8,8,0,0,0,4.6,4.6l59.37,22.84a16,16,0,0,1,0,29.86l-59.37,22.84a8,8,0,0,0-4.6,4.6l-22.84,59.37A16,16,0,0,1,400,256Z"/></svg>',
+		'<svg viewBox="0 0 512 512" width="16" height="16"><path fill="currentColor" d="M208,512a24.84,24.84,0,0,1-23.34-16l-39.84-103.6a16.06,16.06,0,0,0-9.19-9.19L32,343.34a25,25,0,0,1,0-46.68l103.6-39.84a16.06,16.06,0,0,0,9.19-9.19L184.66,144a25,25,0,0,1,46.68,0l39.84,103.6a16.06,16.06,0,0,0,9.19,9.19l103,39.63A25.49,25.49,0,0,1,400,320.52a24.82,24.82,0,0,1-16,22.82l-103.6,39.84a16.06,16.06,0,0,0-9.19,9.19L231.34,496A24.84,24.84,0,0,1,208,512Zm66.85-254.84h0Z"/><path fill="currentColor" d="M88,176a14.67,14.67,0,0,1-13.69-9.4L57.45,122.76a7.28,7.28,0,0,0-4.21-4.21L9.4,101.69a14.67,14.67,0,0,1,0-27.38L53.24,57.45a7.31,7.31,0,0,0,4.21-4.21L74.16,9.79A15,15,0,0,1,86.23.11,14.67,14.67,0,0,1,101.69,9.4l16.86,43.84a7.31,7.31,0,0,0,4.21,4.21L166.6,74.31a14.67,14.67,0,0,1,0,27.38l-43.84,16.86a7.28,7.28,0,0,0-4.21,4.21L101.69,166.6A14.67,14.67,0,0,1,88,176Z"/><path fill="currentColor" d="M400,256a16,16,0,0,1-14.93-10.26l-22.84-59.37a8,8,0,0,0-4.6-4.6l-59.37-22.84a16,16,0,0,1,0-29.86l59.37-22.84a8,8,0,0,0,4.6-4.6L384.9,42.68a16.45,16.45,0,0,1,13.17-10.57,16,16,0,0,1,16.86,10.15l22.84,59.37a8,8,0,0,0,4.6,4.6l59.37,22.84a16,16,0,0,1,0,29.86l-59.37,22.84a8,8,0,0,0-4.6,4.6l-22.84,59.37A16,16,0,0,1,400,256Z"/></svg>',
 };
 
 const getStickyIcon = (): string =>
@@ -1144,36 +1144,40 @@ const updateStickyLyricsFeature = (): void => {
 };
 (window as any).updateStickyLyricsFeature = updateStickyLyricsFeature;
 
-const createStickyLyricsDropdown = (): void => {
-	const lyricsToggle = document.querySelector(
-		'[data-test="toggle-lyrics"]',
-	) as HTMLElement;
-	if (!lyricsToggle) return;
-	if (lyricsToggle.querySelector(".sticky-lyrics-trigger")) return;
+let stickyDropdownEl: HTMLElement | null = null;
+let stickyDropdownOpen = false;
+const DROPDOWN_WIDTH = 150;
 
-	// Trigger lives inside the toggle button
-	const trigger = document.createElement("div");
-	trigger.className = "sticky-lyrics-trigger";
-	trigger.setAttribute("title", "Sticky Lyrics");
-	trigger.innerHTML = getStickyIcon();
+const positionDropdown = (): void => {
+	if (!stickyDropdownEl) return;
+	const toggle = document.querySelector('[data-test="toggle-lyrics"]') as HTMLElement;
+	if (!toggle) return;
+	const rect = toggle.getBoundingClientRect();
+	stickyDropdownEl.style.top = `${rect.bottom}px`;
+	stickyDropdownEl.style.left = `${rect.left}px`;
+	stickyDropdownEl.style.width = `${rect.width}px`;
+	stickyDropdownEl.style.display = "block";
+};
 
-	// Block non-click events from reaching the toggle button (capture phase)
-	for (const evtName of [
-		"pointerdown",
-		"pointerup",
-		"mousedown",
-		"mouseup",
-	] as const) {
-		trigger.addEventListener(
-			evtName,
-			(e: Event) => {
-				e.stopPropagation();
-			},
-			true,
-		);
-	}
+const openStickyDropdown = (toggle: HTMLElement): void => {
+	stickyDropdownOpen = true;
+	document.body.classList.add("rl-dropdown-open");
+	const onWidened = () => {
+		toggle.removeEventListener("transitionend", onWidened);
+		positionDropdown();
+	};
+	toggle.addEventListener("transitionend", onWidened);
+};
 
-	// Dropdown lives in document.body
+const closeStickyDropdown = (): void => {
+	stickyDropdownOpen = false;
+	document.body.classList.remove("rl-dropdown-open");
+	if (stickyDropdownEl) stickyDropdownEl.style.display = "none";
+};
+
+const ensureStickyDropdown = (): HTMLElement => {
+	if (stickyDropdownEl) return stickyDropdownEl;
+
 	const dropdown = document.createElement("div");
 	dropdown.className = "sticky-lyrics-dropdown";
 	dropdown.style.display = "none";
@@ -1194,39 +1198,6 @@ const createStickyLyricsDropdown = (): void => {
 			</div>
 		</div>
 	`;
-
-	const openDropdown = (): void => {
-		const buttonRect = lyricsToggle.getBoundingClientRect();
-		const dropWidth = Math.max(buttonRect.width, 150);
-		dropdown.style.top = `${buttonRect.bottom}px`;
-		dropdown.style.left = `${buttonRect.right - dropWidth}px`;
-		dropdown.style.width = `${dropWidth}px`;
-		dropdown.style.display = "block";
-		lyricsToggle.classList.add("sticky-lyrics-open");
-	};
-	const closeDropdown = (): void => {
-		dropdown.style.display = "none";
-		lyricsToggle.classList.remove("sticky-lyrics-open");
-	};
-
-	trigger.addEventListener(
-		"click",
-		(e: MouseEvent) => {
-			e.stopPropagation();
-			const isActive = lyricsToggle.getAttribute("aria-pressed") === "true";
-			if (!isActive) {
-				lyricsToggle.click();
-				safeTimeout(unloads, () => openDropdown(), 150);
-				return;
-			}
-			if (dropdown.style.display === "none") {
-				openDropdown();
-			} else {
-				closeDropdown();
-			}
-		},
-		true,
-	);
 
 	const stickyCheckbox = dropdown.querySelector(
 		'input[data-setting="stickyLyrics"]',
@@ -1258,25 +1229,84 @@ const createStickyLyricsDropdown = (): void => {
 		});
 	}
 
-	const handleOutsideClick = (e: MouseEvent): void => {
+	document.body.appendChild(dropdown);
+	stickyDropdownEl = dropdown;
+
+	const outsideHandler = (e: MouseEvent): void => {
+		const trigger = document.querySelector(".sticky-lyrics-trigger");
 		if (
-			!trigger.contains(e.target as Node) &&
+			(!trigger || !trigger.contains(e.target as Node)) &&
 			!dropdown.contains(e.target as Node)
 		) {
-			closeDropdown();
+			closeStickyDropdown();
 		}
 	};
-	document.addEventListener("click", handleOutsideClick);
-
-	lyricsToggle.appendChild(trigger);
-	document.body.appendChild(dropdown);
+	document.addEventListener("click", outsideHandler);
 
 	unloads.add(() => {
-		document.removeEventListener("click", handleOutsideClick);
-		lyricsToggle.classList.remove("sticky-lyrics-open");
-		trigger.remove();
+		document.removeEventListener("click", outsideHandler);
+		document.body.classList.remove("rl-dropdown-open");
 		dropdown.remove();
+		stickyDropdownEl = null;
+		stickyDropdownOpen = false;
 	});
+
+	return dropdown;
+};
+
+const createStickyLyricsDropdown = (): void => {
+	const lyricsToggle = document.querySelector(
+		'[data-test="toggle-lyrics"]',
+	) as HTMLElement;
+	if (!lyricsToggle) return;
+	if (lyricsToggle.querySelector(".sticky-lyrics-trigger")) return;
+
+	ensureStickyDropdown();
+
+	const trigger = document.createElement("div");
+	trigger.className = "sticky-lyrics-trigger";
+	trigger.setAttribute("title", "Sticky Lyrics");
+	trigger.innerHTML = getStickyIcon();
+
+	for (const evtName of [
+		"pointerdown",
+		"pointerup",
+		"mousedown",
+		"mouseup",
+	] as const) {
+		trigger.addEventListener(
+			evtName,
+			(e: Event) => {
+				e.stopPropagation();
+			},
+			true,
+		);
+	}
+
+	trigger.addEventListener(
+		"click",
+		(e: MouseEvent) => {
+			e.stopPropagation();
+			const isActive = lyricsToggle.getAttribute("aria-pressed") === "true";
+			if (!isActive) {
+				lyricsToggle.click();
+				safeTimeout(unloads, () => openStickyDropdown(lyricsToggle), 150);
+				return;
+			}
+			if (stickyDropdownOpen) {
+				closeStickyDropdown();
+			} else {
+				openStickyDropdown(lyricsToggle);
+			}
+		},
+		true,
+	);
+
+	lyricsToggle.appendChild(trigger);
+
+	if (stickyDropdownOpen) {
+		positionDropdown();
+	}
 };
 
 // Sticky Lyrics nav for injected lyrics tab
@@ -1286,17 +1316,28 @@ const tryActivateStickyLyricsTab = (): boolean => {
 	const lyricsToggle = document.querySelector(
 		'[data-test="toggle-lyrics"]',
 	) as HTMLElement;
-	if (!lyricsToggle) return false;
+	if (!lyricsToggle || lyricsToggle.getAttribute("aria-disabled") === "true") {
+		tryActivateSimilarTracksTab();
+		return false;
+	}
 
 	if (syntheticNativeLyrics) {
 		notifyNativeLyricsStateChanged();
 	}
 
-	// Already pressed — nothing to do
 	if (lyricsToggle.getAttribute("aria-pressed") === "true") return true;
 
 	lyricsToggle.click();
 	return true;
+};
+
+const tryActivateSimilarTracksTab = (): void => {
+	const btn = document.querySelector(
+		'[data-test="toggle-similar-tracks"]',
+	) as HTMLElement;
+	if (!btn) return;
+	if (btn.getAttribute("aria-pressed") === "true") return;
+	btn.click();
 };
 
 const syncNativeLyricsAvailability = (): void => {
@@ -1304,19 +1345,9 @@ const syncNativeLyricsAvailability = (): void => {
 	notifyNativeLyricsStateChanged();
 };
 
-// Handle ensuring lyrics panel stays open on track change
 const handleStickyLyricsTrackChange = (): void => {
 	if (!settings.stickyLyrics) return;
-
-	safeTimeout(
-		unloads,
-		() => {
-			if (!settings.stickyLyrics) return;
-			syncNativeLyricsAvailability();
-			tryActivateStickyLyricsTab();
-		},
-		1200,
-	);
+	tryActivateStickyLyricsTab();
 };
 
 // Track change sequencing (used by onTrackChange)
@@ -1340,6 +1371,19 @@ function setupStickyLyricsObserver(): void {
 			if (settings.stickyLyrics) {
 				tryActivateStickyLyricsTab();
 			}
+		}
+	});
+
+	// When lyrics toggle becomes disabled → similar tracks; enabled → lyrics
+	observe<HTMLElement>(unloads, '[data-test="toggle-lyrics"][aria-disabled="true"]', () => {
+		if (settings.stickyLyrics) {
+			tryActivateSimilarTracksTab();
+		}
+	});
+
+	observe<HTMLElement>(unloads, '[data-test="toggle-lyrics"]:not([aria-disabled])', () => {
+		if (settings.stickyLyrics) {
+			tryActivateStickyLyricsTab();
 		}
 	});
 
@@ -1704,7 +1748,7 @@ const buildSyntheticLrcText = (response: LyricsApiResponse): string =>
 		.map((line) => {
 			const text =
 				("romanized" in line && line.romanized ? line.romanized : line.text) ?? "";
-			return `${formatLrcTime(line.startTime)}${text}`;
+			return `[${formatLrcTime(line.startTime)}]${text}`;
 		})
 		.join("\n");
 
@@ -1735,6 +1779,33 @@ const clearSyntheticNativeLyrics = (): void => {
 	syntheticNativeLyrics = null;
 	invalidateOverlayCache();
 	notifyNativeLyricsStateChanged();
+};
+
+const muteRerenderObserver = (): void => {
+	suppressRerenderObserver = true;
+	if (rerenderObserverMuteTimeout !== null) {
+		window.clearTimeout(rerenderObserverMuteTimeout);
+		rerenderObserverMuteTimeout = null;
+	}
+};
+
+const unmuteRerenderObserverSoon = (): void => {
+	if (rerenderObserverMuteTimeout !== null) {
+		window.clearTimeout(rerenderObserverMuteTimeout);
+	}
+	rerenderObserverMuteTimeout = window.setTimeout(() => {
+		suppressRerenderObserver = false;
+		rerenderObserverMuteTimeout = null;
+	}, 0);
+};
+
+const runWithMutedRerenderObserver = (fn: () => void): void => {
+	muteRerenderObserver();
+	try {
+		fn();
+	} finally {
+		unmuteRerenderObserverSoon();
+	}
 };
 
 const getLyricsRenderHost = (): {
@@ -1829,6 +1900,8 @@ interface LineEntry {
 let lines: LineEntry[] = [];
 let rerenderObserver: MutationObserver | null = null;
 let rerenderDebounce: number | null = null;
+let suppressRerenderObserver = false;
+let rerenderObserverMuteTimeout: number | null = null;
 const activeWordEls = new Map<number, HTMLSpanElement | null>();
 const activeBgWordEls = new Map<number, HTMLSpanElement | null>();
 let activeLineIdxs = new Set<number>();
@@ -3179,6 +3252,7 @@ const watchForRerender = (): void => {
 	if (!lyricsContainer) return;
 
 	rerenderObserver = new MutationObserver(() => {
+		if (suppressRerenderObserver) return;
 		if (rerenderDebounce !== null) {
 			clearTimeout(rerenderDebounce);
 		}
@@ -3189,17 +3263,19 @@ const watchForRerender = (): void => {
 			const existing = lyricsContainer.querySelector(".rl-wbw-container");
 			if (!existing) {
 				sylTrace("Lyrics overlay: re-applying after Tidal re-render");
-				hideTidalLyrics();
-				if (lyricsMode === "line-tidal") {
-					const result = buildTidalLines(cachedTidalRomanizedLines);
-					lines = result.lines;
-					applyActiveLineStateNoTransition();
-					startTidalFollowLoop();
-				} else if (lyricsData) {
-					const result = buildWordSpans();
-					lines = result.lines;
-					applyActiveLineStateNoTransition();
-				}
+				runWithMutedRerenderObserver(() => {
+					hideTidalLyrics();
+					if (lyricsMode === "line-tidal") {
+						const result = buildTidalLines(cachedTidalRomanizedLines);
+						lines = result.lines;
+						applyActiveLineStateNoTransition();
+						startTidalFollowLoop();
+					} else if (lyricsData) {
+						const result = buildWordSpans();
+						lines = result.lines;
+						applyActiveLineStateNoTransition();
+					}
+				});
 			}
 		}, 100);
 	});
@@ -3215,6 +3291,11 @@ const unwatchRerender = (): void => {
 		clearTimeout(rerenderDebounce);
 		rerenderDebounce = null;
 	}
+	if (rerenderObserverMuteTimeout !== null) {
+		window.clearTimeout(rerenderObserverMuteTimeout);
+		rerenderObserverMuteTimeout = null;
+	}
+	suppressRerenderObserver = false;
 	if (rerenderObserver) {
 		rerenderObserver.disconnect();
 		rerenderObserver = null;
