@@ -99,13 +99,12 @@ const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
 	};
 };
 
-// Apply Settings to Floating Player Bar using inline styles because idk.. CSS is hard (Change my mind!)
+// Apply inline styles to the player bar (tint + optional radius/spacing customisation)
 const applyPlayerBarTintToElement = (): void => {
 	const footerPlayer = document.querySelector(
 		'[data-test="footer-player"]',
 	) as HTMLElement;
 	if (!footerPlayer) return;
-	// Always apply tint regardless of floating state
 	const alpha = settings.playerBarTint / 10;
 	const { r, g, b } = hexToRgb(settings.playerBarTintColor);
 	footerPlayer.style.setProperty(
@@ -135,12 +134,12 @@ const applyPlayerBarTintToElement = (): void => {
 	}
 };
 
-// Apply/update the floating player bar stylesheet + tint
+// When floating is disabled, inject square-bar CSS to override Tidal's native floating styles
 const applyFloatingPlayerBar = (): void => {
 	if (settings.floatingPlayerBar) {
-		floatingPlayerBarStyleTag.css = floatingPlayerBarCss;
-	} else {
 		floatingPlayerBarStyleTag.remove();
+	} else {
+		floatingPlayerBarStyleTag.css = floatingPlayerBarCss;
 	}
 	applyPlayerBarTintToElement();
 };
@@ -235,18 +234,6 @@ const updateRadiantLyricsStyles = function (): void {
 
 	// Toggle glow via CSS vars + class on :root (always available, no timing issues)
 	updateRadiantLyricsTextGlow();
-
-	// Track title glow toggle based on settings
-	const trackTitleEl = document.querySelector(
-		'[data-test="new-now-playing"] [class*="_titleContainer_"]',
-	) as HTMLElement | null;
-	if (trackTitleEl) {
-		if (settings.trackTitleGlow && settings.lyricsGlowEnabled) {
-			trackTitleEl.classList.remove("rl-title-glow-disabled");
-		} else {
-			trackTitleEl.classList.add("rl-title-glow-disabled");
-		}
-	}
 };
 
 // MARKER: UI Visibility Control
@@ -4107,34 +4094,6 @@ function setupNowPlayingObserver(): void {
 	});
 }
 
-function setupTrackTitleObserver(): void {
-	const trackTitleEl = document.querySelector(
-		'[data-test="new-now-playing"] [class*="_titleContainer_"]',
-	) as HTMLElement | null;
-	if (trackTitleEl) {
-		if (settings.trackTitleGlow && settings.lyricsGlowEnabled) {
-			trackTitleEl.classList.remove("rl-title-glow-disabled");
-		} else {
-			trackTitleEl.classList.add("rl-title-glow-disabled");
-		}
-	}
-	observe<HTMLElement>(
-		unloads,
-		'[data-test="new-now-playing"]',
-		() => {
-			const el = document.querySelector(
-				'[data-test="new-now-playing"] [class*="_titleContainer_"]',
-			) as HTMLElement | null;
-			if (!el) return;
-			if (settings.trackTitleGlow && settings.lyricsGlowEnabled) {
-				el.classList.remove("rl-title-glow-disabled");
-			} else {
-				el.classList.add("rl-title-glow-disabled");
-			}
-		},
-	);
-}
-
 // Apply seeker color on track change
 onGlobalTrackChange(() => {
 	updateCoverArtBackground();
@@ -4144,6 +4103,5 @@ onGlobalTrackChange(() => {
 // Init observers
 setupHeaderObserver();
 setupNowPlayingObserver();
-setupTrackTitleObserver();
 setupStickyLyricsObserver();
 setupTrackChangeListener();

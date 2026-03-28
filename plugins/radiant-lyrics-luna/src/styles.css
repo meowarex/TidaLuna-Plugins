@@ -278,3 +278,9 @@ body.rl-dropdown-open [data-test="toggle-lyrics"] {
 [class*="_contentInner"] {
 	max-width: none !important;
 }
+
+/* Round now-playing artwork corners */
+[data-test="now-playing-artwork"] {
+	/* biome-ignore lint: Override flat corners */
+	border-radius: 10px !important;
+}

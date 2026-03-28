@@ -68,29 +68,6 @@
 	transition-duration: 0.7s;
 }
 
-/* Track title glow */
-[data-test="new-now-playing"] [class*="_titleContainer_"] {
-	/* Title text color/gradient is left to default app styling; only glow is customized. */
-	text-shadow:
-		0 0 var(--rl-glow-inner, 1px) var(--cl-glow1, #fff),
-		/* biome-ignore lint: Title glow needs priority */
-		0 0 var(--rl-glow-outer, 30px) #fff !important;
-	/* biome-ignore lint: Reset vendor background clip */
-	-webkit-background-clip: initial !important;
-	/* biome-ignore lint: Reset background clip */
-	background-clip: initial !important;
-	/* biome-ignore lint: Reset vendor text fill */
-	-webkit-text-fill-color: initial !important;
-	/* biome-ignore lint: Ensure inherited color takes precedence */
-	color: inherit !important;
-}
-
-/* When track title glow setting is disabled, remove glow regardless of Colorama */
-[data-test="new-now-playing"] [class*="_titleContainer_"].rl-title-glow-disabled {
-	/* biome-ignore lint: Full reset required */
-	text-shadow: none !important;
-}
-
 /* Current line transitions */
 [data-test="now-playing-lyrics"] span[data-test="lyrics-line"] {
 	transition:

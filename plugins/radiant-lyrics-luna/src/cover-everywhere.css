@@ -128,8 +128,7 @@ main,
 	background: unset !important;
 }
 
-/* Make sidebar and player bar semi-transparent with optimized backdrop-filter */
-[data-test="footer-player"],
+/* Make sidebar semi-transparent with optimized backdrop-filter */
 [data-test="main-layout-sidebar-wrapper"] {
 	/* biome-ignore lint: Must beat app inline styles for translucency */
 	background-color: rgba(0, 0, 0, 0.3) !important;
@@ -140,7 +139,6 @@ main,
 }
 
 /* Performance mode: reduce backdrop blur */
-.performance-mode [data-test="footer-player"],
 .performance-mode [data-test="main-layout-sidebar-wrapper"] {
 	/* biome-ignore lint: Performance mode style requires priority */
 	backdrop-filter: blur(5px) !important;
