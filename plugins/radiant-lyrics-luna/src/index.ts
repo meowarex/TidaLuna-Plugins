@@ -1148,11 +1148,23 @@ const positionDropdown = (): void => {
 const openStickyDropdown = (toggle: HTMLElement): void => {
 	stickyDropdownOpen = true;
 	document.body.classList.add("rl-dropdown-open");
-	const onWidened = () => {
+	let positioned = false;
+	const onWidened = (e: TransitionEvent) => {
+		if (e.propertyName !== "min-width") return;
 		toggle.removeEventListener("transitionend", onWidened);
-		positionDropdown();
+		if (!positioned) {
+			positioned = true;
+			positionDropdown();
+		}
 	};
-	toggle.addEventListener("transitionend", onWidened);
+	toggle.addEventListener("transitionend", onWidened as EventListener);
+	safeTimeout(unloads, () => {
+		toggle.removeEventListener("transitionend", onWidened as EventListener);
+		if (!positioned) {
+			positioned = true;
+			positionDropdown();
+		}
+	}, 200);
 };
 
 const closeStickyDropdown = (): void => {
@@ -1517,6 +1529,8 @@ let cachedOvlTracksSlice: any = null;
 let cachedOvlLyricsSlice: any = null;
 let cachedSrcEntities: any = null;
 let cachedOvlEntities: any = null;
+let cachedSrcState: any = null;
+let cachedOvlState: any = null;
 
 const isWordMode = (): boolean => lyricsMode === "word";
 const getLyricsStyle = (): number => (isWordMode() ? settings.lyricsStyle : 0);
@@ -1601,6 +1615,8 @@ const invalidateOverlayCache = (): void => {
 	cachedOvlLyricsSlice = null;
 	cachedSrcEntities = null;
 	cachedOvlEntities = null;
+	cachedSrcState = null;
+	cachedOvlState = null;
 };
 
 const overlaySyntheticNativeLyricsState = (state: any): any => {
@@ -1667,9 +1683,15 @@ const overlaySyntheticNativeLyricsState = (state: any): any => {
 			tracks: cachedOvlTracksSlice,
 			lyrics: cachedOvlLyricsSlice,
 		};
+		cachedSrcState = null;
 	}
 
-	return { ...state, entities: cachedOvlEntities };
+	if (cachedSrcState !== state) {
+		cachedSrcState = state;
+		cachedOvlState = { ...state, entities: cachedOvlEntities };
+	}
+
+	return cachedOvlState ?? state;
 };
 
 const installNativeLyricsOverlay = (): void => {
@@ -3316,12 +3338,12 @@ const teardown = (): void => {
 	activeLineIdxs.clear();
 	primaryLineIdx = -1;
 	clearLineSlideTimers();
-	clearLineSlideTimers();
 	clearSyntheticNativeLyrics();
 	restoreTidalLyrics();
 };
 
-// find scrollable parent
+// find scrollable parent — walk up but never past the now-playing boundary
+// to avoid scrolling a shared ancestor that would shift the play queue
 const findScroller = (el: HTMLElement): HTMLElement => {
 	const lyricsPanel = el.closest(
 		'[data-test="now-playing-lyrics"]',
@@ -3330,8 +3352,10 @@ const findScroller = (el: HTMLElement): HTMLElement => {
 		return lyricsPanel;
 	}
 
+	const boundary = el.closest('[data-test="new-now-playing"]');
 	let parent = el.parentElement;
 	while (parent) {
+		if (boundary && !boundary.contains(parent)) break;
 		const style = window.getComputedStyle(parent);
 		if (
 			style.overflowY === "auto" ||
@@ -3344,7 +3368,7 @@ const findScroller = (el: HTMLElement): HTMLElement => {
 		}
 		parent = parent.parentElement;
 	}
-	return document.documentElement;
+	return lyricsPanel ?? document.documentElement;
 };
 
 // Lock scroll parent so tidal can't scroll to line spans
@@ -3430,14 +3454,15 @@ const scrollToActiveLine = (): void => {
 };
 
 // Resync lyric scroll (scrubbing and lyric jumps)
-const resync = (): void => {
+const resync = (syncNativeButton = true): void => {
 	scrollSynced = true;
 	applyInactiveBlurState(primaryLineIdx, activeLineIdxs.size === 0, activeLineIdxs);
 	scrollToActiveLine();
-	if (syncButtonEl) {
-		syncButtonEl.click();
-	}
+	const nativeSyncButton = syncButtonEl;
 	unhookSyncButton();
+	if (syncNativeButton && nativeSyncButton?.isConnected) {
+		nativeSyncButton.click();
+	}
 	sylLog("[RL-Syllable] Scroll resynced");
 };
 
@@ -3477,7 +3502,7 @@ const hookSyncButton = (): void => {
 	) as HTMLElement;
 	if (!btn) return;
 	syncButtonEl = btn;
-	const handler = () => resync();
+	const handler = () => resync(false);
 	btn.addEventListener("click", handler);
 	syncButtonListener = () => btn.removeEventListener("click", handler);
 };
@@ -3516,16 +3541,6 @@ const startTickLoop = (): void => {
 			const didScrub =
 				lastTickMs >= 0 && (timeDelta < -100 || timeDelta > 1000);
 			lastTickMs = nowMs;
-
-			// strip active state from tidal's hidden spans to prevent style conflicts
-			const tidalSpans = document.querySelectorAll(
-				'span[data-test="lyrics-line"]',
-			);
-			for (const span of tidalSpans) {
-				for (const cls of Array.from(span.classList)) {
-					if (cls.startsWith("_current_")) span.classList.remove(cls);
-				}
-			}
 
 			if (!isLineStyle && nowMs - lastLogTime >= 1000) {
 				lastLogTime = nowMs;
