@@ -271,6 +271,7 @@ body.rl-dropdown-open [data-test="toggle-lyrics"] {
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
+
 /* MARKER: PATCHES (Random Fixes for Tidals Changes) */
 /* These change allot so i gave them their own section */
 
@@ -283,4 +284,10 @@ body.rl-dropdown-open [data-test="toggle-lyrics"] {
 [data-test="now-playing-artwork"] {
 	/* biome-ignore lint: Override flat corners */
 	border-radius: 10px !important;
+}
+
+/* Hide the Overlay Scrollbar (people just use mouse scroll) */
+.os-scrollbar {
+	display: none !important;
+	pointer-events: none !important;
 }

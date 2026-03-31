@@ -8,52 +8,23 @@ declare global {
 	}
 }
 
-// Define a typed onChange signature for the switch
 type SwitchChangeHandler = (
 	event: React.ChangeEvent<HTMLInputElement> | null,
 	checked: boolean,
 ) => void;
 
-export type ColoramaMode =
-	| "single"
-	| "gradient-experimental"
-	| "cover"
-	| "cover-gradient";
-
 export const settings = await ReactiveStore.getPluginStorage("ColoramaLyrics", {
 	enabled: true,
-	mode: "single" as ColoramaMode,
-	// Store colors as RGB hex (#RRGGBB) and opacity separately (0-100)
 	singleColor: "#FFFFFF",
 	singleAlpha: 100,
-	gradientStart: "#FFFFFF",
-	gradientStartAlpha: 100,
-	gradientEnd: "#AAFFFF",
-	gradientEndAlpha: 100,
-	gradientAngle: 0,
 	customColors: [] as string[],
 	excludeInactive: false,
 });
 
 export const Settings = () => {
-	// const [enabled, setEnabled] = React.useState(settings.enabled);
-	const [mode, setMode] = React.useState<ColoramaMode>(settings.mode);
 	const [singleColor, setSingleColor] = React.useState(settings.singleColor);
 	const [singleAlpha, setSingleAlpha] = React.useState<number>(
 		settings.singleAlpha ?? 100,
-	);
-	const [gradientStart, setGradientStart] = React.useState(
-		settings.gradientStart,
-	);
-	const [gradientStartAlpha, setGradientStartAlpha] = React.useState<number>(
-		settings.gradientStartAlpha ?? 100,
-	);
-	const [gradientEnd, setGradientEnd] = React.useState(settings.gradientEnd);
-	const [gradientEndAlpha, setGradientEndAlpha] = React.useState<number>(
-		settings.gradientEndAlpha ?? 100,
-	);
-	const [gradientAngle, setGradientAngle] = React.useState(
-		settings.gradientAngle,
 	);
 	const [customInput, setCustomInput] = React.useState(settings.singleColor);
 	const [customColors, setCustomColors] = React.useState(settings.customColors);
@@ -63,9 +34,6 @@ export const Settings = () => {
 	const [excludeInactive, setExcludeInactive] = React.useState(
 		settings.excludeInactive,
 	);
-	const [activeEndpoint, setActiveEndpoint] = React.useState<
-		"single" | "start" | "end"
-	>("single");
 	const AnySwitch = LunaSwitchSetting as unknown as React.ComponentType<{
 		title: string;
 		desc?: string;
@@ -73,28 +41,23 @@ export const Settings = () => {
 		onChange: SwitchChangeHandler;
 	}>;
 
-	// Helper for HEX normalization
 	const normalizeToRGB = (
 		hex: string,
 		fallback: string = "#FFFFFF",
 	): string => {
 		let v = hex.trim().toLowerCase();
 		if (!v.startsWith("#")) v = `#${v}`;
-		// #rgb or #rgba -> expand
 		if (/^#([0-9a-f]{3,4})$/.test(v)) {
 			const m = v.slice(1);
 			const r = m[0];
 			const g = m[1];
 			const b = m[2];
-			// ignore alpha if provided (#rgba)
 			return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
 		}
-		// #aarrggbb -> strip alpha
 		if (/^#([0-9a-f]{8})$/.test(v)) {
 			const rrggbb = v.slice(3);
 			return `#${rrggbb}`.toUpperCase();
 		}
-		// #rrggbb
 		if (/^#([0-9a-f]{6})$/.test(v)) return v.toUpperCase();
 		return fallback;
 	};
@@ -121,8 +84,7 @@ export const Settings = () => {
 		"#1976D2",
 	];
 
-	const openPicker = (endpoint: "single" | "start" | "end" = "single") => {
-		setActiveEndpoint(endpoint);
+	const openPicker = () => {
 		setShowPicker(true);
 		setShouldRender(true);
 		setTimeout(() => setIsAnimatingIn(true), 10);
@@ -140,22 +102,10 @@ export const Settings = () => {
 	const applyCustomInputColor = (raw: string, updateInput: boolean): void => {
 		const trimmed = raw.trim();
 		if (!hexColorRegex.test(trimmed)) return;
-		if (mode === "single") {
-			const next = normalizeToRGB(trimmed);
-			settings.singleColor = next;
-			setSingleColor(next);
-			if (updateInput) setCustomInput(next);
-		} else if (mode === "gradient-experimental") {
-			const next = normalizeToRGB(trimmed);
-			if (activeEndpoint === "end") {
-				settings.gradientEnd = next;
-				setGradientEnd(next);
-			} else {
-				settings.gradientStart = next;
-				setGradientStart(next);
-			}
-			if (updateInput) setCustomInput(next);
-		}
+		const next = normalizeToRGB(trimmed);
+		settings.singleColor = next;
+		setSingleColor(next);
+		if (updateInput) setCustomInput(next);
 		requestApply();
 	};
 
@@ -172,12 +122,6 @@ export const Settings = () => {
 		}
 	};
 
-	// const removeCustomColor = (color: string) => {
-	// 	const updated = customColors.filter((c) => c !== color);
-	// 	setCustomColors(updated);
-	// 	settings.customColors = updated;
-	// };
-
 	const allColors = [...colorPresets, ...customColors];
 
 	const requestApply = () => {
@@ -186,66 +130,11 @@ export const Settings = () => {
 
 	return (
 		<LunaSettings>
-			{/* Mode selection via dropdown (aligned right) */}
+			{/* Single color picker button */}
 			<div
 				style={{
 					padding: "8px 0",
 					display: "flex",
-					alignItems: "center",
-					gap: 12,
-				}}
-			>
-				<div style={{ display: "flex", flexDirection: "column" }}>
-					<div style={{ fontWeight: "normal", fontSize: "1.075rem" }}>Mode</div>
-					<div style={{ opacity: 0.7, fontSize: 14 }}>
-						Choose how lyrics are colored
-					</div>
-				</div>
-				<select
-					value={mode}
-					onChange={(e) => {
-						const next = e.target.value as ColoramaMode;
-						settings.mode = next;
-						setMode(next);
-						requestApply();
-					}}
-					style={{
-						padding: "6px 10px",
-						borderRadius: 6,
-						border: "1px solid rgba(255,255,255,0.2)",
-						background: "rgba(255,255,255,0.08)",
-						color: "#fff",
-						cursor: "pointer",
-						marginLeft: "auto",
-						minWidth: 180,
-					}}
-				>
-					<option value="single" style={{ color: "#000", background: "#fff" }}>
-						Single
-					</option>
-					<option
-						value="gradient-experimental"
-						style={{ color: "#000", background: "#fff" }}
-					>
-						Gradient - Experimental
-					</option>
-					<option value="cover" style={{ color: "#000", background: "#fff" }}>
-						Cover - Experimental
-					</option>
-					<option
-						value="cover-gradient"
-						style={{ color: "#000", background: "#fff" }}
-					>
-						Cover (Gradient) - Experimental
-					</option>
-				</select>
-			</div>
-
-			{/* Single color */}
-			<div
-				style={{
-					padding: "8px 0",
-					display: mode === "single" ? "flex" : "none",
 					justifyContent: "space-between",
 					alignItems: "center",
 				}}
@@ -272,7 +161,7 @@ export const Settings = () => {
 				>
 					<button
 						type="button"
-						onClick={() => (showPicker ? closePicker() : openPicker("single"))}
+						onClick={() => (showPicker ? closePicker() : openPicker())}
 						style={{
 							width: 32,
 							height: 32,
@@ -285,84 +174,7 @@ export const Settings = () => {
 				</div>
 			</div>
 
-			{/* Gradient controls (open picker) */}
-			<div
-				style={{
-					padding: "8px 0",
-					display: mode === "gradient-experimental" ? "flex" : "none",
-					justifyContent: "space-between",
-					alignItems: "center",
-				}}
-			>
-				<div>
-					<div
-						style={{
-							fontWeight: "normal",
-							fontSize: "1.075rem",
-							marginBottom: 4,
-						}}
-					>
-						Gradient (Experimental)
-					</div>
-					<div style={{ opacity: 0.7, fontSize: 14 }}>Set colors & angle</div>
-				</div>
-				<button
-					type="button"
-					onClick={() => {
-						setCustomInput(gradientStart);
-						openPicker("start");
-					}}
-					style={{
-						padding: "8px 12px",
-						borderRadius: 8,
-						border: "1px solid rgba(255,255,255,0.2)",
-						background: "rgba(255,255,255,0.08)",
-						color: "#fff",
-						cursor: "pointer",
-					}}
-				>
-					Configure
-				</button>
-			</div>
-
-			{/* Cover gradient controls (open picker for angle) */}
-			<div
-				style={{
-					padding: "8px 0",
-					display: mode === "cover-gradient" ? "flex" : "none",
-					justifyContent: "space-between",
-					alignItems: "center",
-				}}
-			>
-				<div>
-					<div
-						style={{
-							fontWeight: "normal",
-							fontSize: "1.075rem",
-							marginBottom: 4,
-						}}
-					>
-						Cover (Gradient) - Experimental
-					</div>
-					<div style={{ opacity: 0.7, fontSize: 14 }}>Set angle</div>
-				</div>
-				<button
-					type="button"
-					onClick={() => openPicker("start")}
-					style={{
-						padding: "8px 12px",
-						borderRadius: 8,
-						border: "1px solid rgba(255,255,255,0.2)",
-						background: "rgba(255,255,255,0.08)",
-						color: "#fff",
-						cursor: "pointer",
-					}}
-				>
-					Configure
-				</button>
-			</div>
-
-			{/* Modal for picking and managing colors (reused) */}
+			{/* Color picker modal */}
 			{shouldRender && (
 				<>
 					<button
@@ -415,369 +227,122 @@ export const Settings = () => {
 								fontSize: 14,
 							}}
 						>
-							{mode === "single" ? "Single Color" : "Gradient Colors"}
+							Lyrics Color
 						</div>
-						{mode === "gradient-experimental" && (
-							<div
-								style={{
-									display: "flex",
-									gap: 8,
-									alignItems: "center",
-									marginBottom: 12,
-								}}
-							>
-								<div style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>
-									Editing
-								</div>
+						<div
+							style={{
+								display: "grid",
+								gridTemplateColumns: "repeat(7, 1fr)",
+								gap: 8,
+								marginBottom: 16,
+							}}
+						>
+							{allColors.map((color) => (
 								<button
-									onClick={() => {
-										setActiveEndpoint("start");
-										setCustomInput(gradientStart);
-									}}
-									style={{
-										display: "flex",
-										alignItems: "center",
-										gap: 8,
-										padding: "6px 10px",
-										borderRadius: 8,
-										border:
-											activeEndpoint === "start"
-												? "1px solid rgba(255,255,255,0.5)"
-												: "1px solid rgba(255,255,255,0.2)",
-										background: "rgba(255,255,255,0.05)",
-										color: "#fff",
-										cursor: "pointer",
-									}}
-									type="button"
-								>
-									<span
-										style={{
-											width: 14,
-											height: 14,
-											borderRadius: 3,
-											background: normalizeToRGB(gradientStart),
-											border: "1px solid rgba(255,255,255,0.3)",
-										}}
-									/>
-									<span style={{ fontSize: 12 }}>Start</span>
-								</button>
-								<button
+									key={color}
 									type="button"
 									onClick={() => {
-										setActiveEndpoint("end");
-										setCustomInput(gradientEnd);
+										const next = normalizeToRGB(color);
+										settings.singleColor = next;
+										setSingleColor(next);
+										setCustomInput(next);
+										requestApply();
 									}}
 									style={{
-										display: "flex",
-										alignItems: "center",
-										gap: 8,
-										padding: "6px 10px",
-										borderRadius: 8,
-										border:
-											activeEndpoint === "end"
-												? "1px solid rgba(255,255,255,0.5)"
-												: "1px solid rgba(255,255,255,0.2)",
-										background: "rgba(255,255,255,0.05)",
-										color: "#fff",
+										width: 32,
+										height: 32,
+										borderRadius: 6,
+										border: "1px solid rgba(255,255,255,0.2)",
+										background: normalizeToRGB(color),
 										cursor: "pointer",
 									}}
-								>
-									<span
-										style={{
-											width: 14,
-											height: 14,
-											borderRadius: 3,
-											background: normalizeToRGB(gradientEnd),
-											border: "1px solid rgba(255,255,255,0.3)",
-										}}
-									/>
-									<span style={{ fontSize: 12 }}>End</span>
-								</button>
-							</div>
-						)}
-						{mode !== "cover-gradient" && (
+								/>
+							))}
+						</div>
+						<div style={{ marginBottom: 12 }}>
 							<div
 								style={{
-									display: "grid",
-									gridTemplateColumns: "repeat(7, 1fr)",
-									gap: 8,
-									marginBottom: 16,
+									color: "rgba(255,255,255,0.7)",
+									fontSize: 12,
+									marginBottom: 6,
 								}}
 							>
-								{allColors.map((color) => (
-									<button
-										key={color}
-										type="button"
-										onClick={() => {
-											const next = normalizeToRGB(color);
-											if (mode === "single") {
-												settings.singleColor = next;
-												setSingleColor(next);
-											} else if (mode === "gradient-experimental") {
-												if (activeEndpoint === "end") {
-													settings.gradientEnd = next;
-													setGradientEnd(next);
-												} else {
-													settings.gradientStart = next;
-													setGradientStart(next);
-												}
-											}
-											setCustomInput(next);
-											requestApply();
-										}}
-										style={{
-											width: 32,
-											height: 32,
-											borderRadius: 6,
-											border: "1px solid rgba(255,255,255,0.2)",
-											background: normalizeToRGB(color),
-											cursor: "pointer",
-										}}
-									/>
-								))}
+								Custom Hex (#RRGGBB)
 							</div>
-						)}
-						{mode !== "cover-gradient" && (
-							<div style={{ marginBottom: 12 }}>
-								<div
-									style={{
-										color: "rgba(255,255,255,0.7)",
-										fontSize: 12,
-										marginBottom: 6,
-									}}
-								>
-									Custom Hex (#RRGGBB)
-								</div>
-								<div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-									<input
-										type="text"
-										value={customInput}
-										onChange={(e) => setCustomInput(e.target.value)}
-										onKeyDown={(e) => {
-											if (e.key === "Enter") {
-												applyCustomInputColor(customInput, true);
-												addCustomColor();
-											}
-										}}
-										placeholder="#RRGGBB"
-										style={{
-											flex: 1,
-											padding: "8px 12px",
-											borderRadius: 6,
-											border: "1px solid rgba(255,255,255,0.2)",
-											background: "rgba(255,255,255,0.1)",
-											color: "#fff",
-											fontSize: 14,
-											fontFamily: "monospace",
-											boxSizing: "border-box",
-										}}
-									/>
-									<button
-										onClick={() => {
-											applyCustomInputColor(customInput, false);
+							<div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+								<input
+									type="text"
+									value={customInput}
+									onChange={(e) => setCustomInput(e.target.value)}
+									onKeyDown={(e) => {
+										if (e.key === "Enter") {
+											applyCustomInputColor(customInput, true);
 											addCustomColor();
-										}}
-										style={{
-											width: 32,
-											height: 32,
-											borderRadius: 6,
-											border: "1px solid rgba(255,255,255,0.3)",
-											background: "rgba(255,255,255,0.15)",
-											color: "#fff",
-											cursor: "pointer",
-											fontSize: 16,
-											display: "flex",
-											alignItems: "center",
-											justifyContent: "center",
-											transition: "all 0.2s ease",
-										}}
-										type="button"
-									>
-										+
-									</button>
-								</div>
-							</div>
-						)}
-						{/* Sliders inside picker based on mode */}
-						{mode === "single" && (
-							<div style={{ marginBottom: 16 }}>
-								<div
+										}
+									}}
+									placeholder="#RRGGBB"
 									style={{
-										color: "rgba(255,255,255,0.8)",
-										fontSize: 12,
-										marginBottom: 6,
+										flex: 1,
+										padding: "8px 12px",
+										borderRadius: 6,
+										border: "1px solid rgba(255,255,255,0.2)",
+										background: "rgba(255,255,255,0.1)",
+										color: "#fff",
+										fontSize: 14,
+										fontFamily: "monospace",
+										boxSizing: "border-box",
 									}}
-								>
-									Alpha
-								</div>
-								<input
-									type="range"
-									min={0}
-									max={100}
-									step={1}
-									value={singleAlpha}
-									onChange={(e) => {
-										const value = Number(e.target.value);
-										settings.singleAlpha = value;
-										setSingleAlpha(value);
-										requestApply();
-									}}
-									style={{ width: "100%" }}
 								/>
-							</div>
-						)}
-
-						{mode === "gradient-experimental" && (
-							<div style={{ marginBottom: 16, display: "grid", gap: 16 }}>
-								<div>
-									<div
-										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: 8,
-											marginBottom: 6,
-										}}
-									>
-										<div
-											style={{
-												width: 12,
-												height: 12,
-												borderRadius: 3,
-												background: normalizeToRGB(gradientStart),
-												border: "1px solid rgba(255,255,255,0.3)",
-											}}
-										/>
-										<div
-											style={{ color: "rgba(255,255,255,0.8)", fontSize: 12 }}
-										>
-											Start Alpha
-										</div>
-									</div>
-									<input
-										type="range"
-										min={0}
-										max={100}
-										step={1}
-										value={gradientStartAlpha}
-										onChange={(e) => {
-											const value = Number(e.target.value);
-											settings.gradientStartAlpha = value;
-											setGradientStartAlpha(value);
-											requestApply();
-										}}
-										style={{ width: "100%" }}
-									/>
-								</div>
-								<div>
-									<div
-										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: 8,
-											marginBottom: 6,
-										}}
-									>
-										<div
-											style={{
-												width: 12,
-												height: 12,
-												borderRadius: 3,
-												background: normalizeToRGB(gradientEnd),
-												border: "1px solid rgba(255,255,255,0.3)",
-											}}
-										/>
-										<div
-											style={{ color: "rgba(255,255,255,0.8)", fontSize: 12 }}
-										>
-											End Alpha
-										</div>
-									</div>
-									<input
-										type="range"
-										min={0}
-										max={100}
-										step={1}
-										value={gradientEndAlpha}
-										onChange={(e) => {
-											const value = Number(e.target.value);
-											settings.gradientEndAlpha = value;
-											setGradientEndAlpha(value);
-											requestApply();
-										}}
-										style={{ width: "100%" }}
-									/>
-								</div>
-								<div>
-									<div
-										style={{
-											display: "flex",
-											alignItems: "center",
-											justifyContent: "space-between",
-											marginBottom: 6,
-										}}
-									>
-										<div
-											style={{ color: "rgba(255,255,255,0.8)", fontSize: 12 }}
-										>
-											Angle
-										</div>
-										<div
-											style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}
-										>
-											{gradientAngle}°
-										</div>
-									</div>
-									<input
-										type="range"
-										min={0}
-										max={360}
-										step={1}
-										value={gradientAngle}
-										onChange={(e) => {
-											const value = Number(e.target.value);
-											settings.gradientAngle = value;
-											setGradientAngle(value);
-											requestApply();
-										}}
-										style={{ width: "100%" }}
-									/>
-								</div>
-							</div>
-						)}
-
-						{mode === "cover-gradient" && (
-							<div style={{ marginBottom: 16 }}>
-								<div
+								<button
+									onClick={() => {
+										applyCustomInputColor(customInput, false);
+										addCustomColor();
+									}}
 									style={{
+										width: 32,
+										height: 32,
+										borderRadius: 6,
+										border: "1px solid rgba(255,255,255,0.3)",
+										background: "rgba(255,255,255,0.15)",
+										color: "#fff",
+										cursor: "pointer",
+										fontSize: 16,
 										display: "flex",
 										alignItems: "center",
-										justifyContent: "space-between",
-										marginBottom: 6,
+										justifyContent: "center",
+										transition: "all 0.2s ease",
 									}}
+									type="button"
 								>
-									<div style={{ color: "rgba(255,255,255,0.8)", fontSize: 12 }}>
-										Angle
-									</div>
-									<div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>
-										{gradientAngle}°
-									</div>
-								</div>
-								<input
-									type="range"
-									min={0}
-									max={360}
-									step={1}
-									value={gradientAngle}
-									onChange={(e) => {
-										const value = Number(e.target.value);
-										settings.gradientAngle = value;
-										setGradientAngle(value);
-										requestApply();
-									}}
-									style={{ width: "100%" }}
-								/>
+									+
+								</button>
 							</div>
-						)}
+						</div>
+						<div style={{ marginBottom: 16 }}>
+							<div
+								style={{
+									color: "rgba(255,255,255,0.8)",
+									fontSize: 12,
+									marginBottom: 6,
+								}}
+							>
+								Alpha
+							</div>
+							<input
+								type="range"
+								min={0}
+								max={100}
+								step={1}
+								value={singleAlpha}
+								onChange={(e) => {
+									const value = Number(e.target.value);
+									settings.singleAlpha = value;
+									setSingleAlpha(value);
+									requestApply();
+								}}
+								style={{ width: "100%" }}
+							/>
+						</div>
 
 						<button
 							onClick={closePicker}
@@ -800,7 +365,7 @@ export const Settings = () => {
 			)}
 			<AnySwitch
 				title="Exclude Inactive"
-				desc="Apply color/gradient only to the currently active lyric line"
+				desc="Apply color only to the currently active lyric line"
 				checked={excludeInactive}
 				onChange={(_event: React.ChangeEvent<HTMLInputElement> | null, checked: boolean) => {
 					settings.excludeInactive = checked;
