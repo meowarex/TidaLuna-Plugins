@@ -2156,16 +2156,16 @@ const fetchLyrics = async (
 		return cachedLyricsData;
 	}
 
-	let params = `lyrics?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`;
+	let params = `?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`;
 	if (isrc) params += `&isrc=${encodeURIComponent(isrc)}`;
 	if (settings.romanizeLyrics) params += "&romanize=true";
 
 	const platformParam = "&platform=" + encodeURIComponent("Radiant Lyrics");
 	const primaryUrls = [
-		`https://rl-api.atomix.one/${params}${platformParam}`,
-		`https://lyricsplus-api.atomix.one/${params}${platformParam}`,
+		`https://api.atomix.one/rl-api${params}${platformParam}`,
+		`https://lyricsplus-api.atomix.one/lyrics${params}${platformParam}`,
 	];
-	const fallbackUrl = `https://rl-api.kineticsand.net/${params}`;
+	const fallbackUrl = `https://rl-api.kineticsand.net/lyrics${params}`;
 
 	// "ok" = got a response (data may still be null if type is unsupported)
 	// "404" = lyrics not found, stop all attempts immediately
@@ -2177,10 +2177,17 @@ const fetchLyrics = async (
 		| { status: "500" }
 		| { status: "err" };
 
+	const rlApiHeaders: Record<string, string> = {
+		"P-Access-Token-Id": "58hy4s86",
+		"P-Access-Token": "xjehy2lfg5h5mjwotoxrcqugam",
+	};
+
 	const tryFetch = async (url: string): Promise<FetchOutcome> => {
 		try {
 			sylTrace(`RL API: Fetching lyrics: ${url}`);
-			const res = await fetch(url);
+			const res = await fetch(url, {
+				headers: url.includes("api.atomix.one") ? rlApiHeaders : undefined,
+			});
 			if (!res.ok) {
 				trace.log(`RL API: fetch failed: ${res.status} from ${url}`);
 				if (res.status === 404) return { status: "404" };
@@ -2318,7 +2325,7 @@ const romanizeLines = async (lineTexts: string[]): Promise<string[] | null> => {
 
 	const romanizePlatform = "?platform=" + encodeURIComponent("Radiant Lyrics");
 	const urls = [
-		`https://rl-api.atomix.one/romanize${romanizePlatform}`,
+		`https://api.atomix.one/rl-api/romanize${romanizePlatform}`,
 		`https://lyricsplus-api.atomix.one/romanize${romanizePlatform}`,
 		"https://rl-api.kineticsand.net/romanize",
 	];
@@ -2327,9 +2334,14 @@ const romanizeLines = async (lineTexts: string[]): Promise<string[] | null> => {
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), 5000);
 		try {
+			const romanizeHeaders: Record<string, string> = { "content-type": "application/json" };
+			if (url.includes("api.atomix.one")) {
+				romanizeHeaders["P-Access-Token-Id"] = "58hy4s86";
+				romanizeHeaders["P-Access-Token"] = "xjehy2lfg5h5mjwotoxrcqugam";
+			}
 			const res = await fetch(url, {
 				method: "POST",
-				headers: { "content-type": "application/json" },
+				headers: romanizeHeaders,
 				body: JSON.stringify(payload),
 				signal: controller.signal,
 			});
