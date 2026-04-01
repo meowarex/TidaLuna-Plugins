@@ -330,7 +330,7 @@ export const Settings = () => {
 							</div>
 							<input
 								type="range"
-								min={0}
+								min={5}
 								max={100}
 								step={1}
 								value={singleAlpha}
