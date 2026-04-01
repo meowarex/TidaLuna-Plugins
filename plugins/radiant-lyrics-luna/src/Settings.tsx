@@ -21,7 +21,6 @@ declare global {
 
 export const settings = await ReactiveStore.getPluginStorage("RadiantLyrics", {
 	lyricsGlowEnabled: true,
-	trackTitleGlow: false,
 	hideUIEnabled: true,
 	playerBarVisible: false,
 	qualityProgressColor: true,
@@ -84,9 +83,6 @@ export const Settings = () => {
 	const [spinSpeed, setSpinSpeed] = React.useState(settings.spinSpeed);
 	const [settingsAffectNowPlaying, setSettingsAffectNowPlaying] =
 		React.useState(settings.settingsAffectNowPlaying);
-	const [trackTitleGlow, setTrackTitleGlow] = React.useState(
-		settings.trackTitleGlow,
-	);
 	const [backgroundScale, setBackgroundScale] = React.useState(
 		settings.backgroundScale,
 	);
@@ -184,19 +180,7 @@ export const Settings = () => {
 					}
 				}}
 			/>
-			<AnySwitch
-				title="Track Title Glow"
-				desc="Apply glow to the track title"
-				checked={trackTitleGlow}
-				onChange={(_: unknown, checked: boolean) => {
-					settings.trackTitleGlow = checked;
-					setTrackTitleGlow(checked);
-					if (window.updateRadiantLyricsStyles) {
-						window.updateRadiantLyricsStyles();
-					}
-				}}
-			/>
-			{(lyricsGlowEnabled || trackTitleGlow) && (
+			{lyricsGlowEnabled && (
 				<LunaNumberSetting
 					title="Text Glow"
 					desc="Adjust the glow size of lyrics (0-100, default: 20)"
@@ -346,7 +330,7 @@ export const Settings = () => {
 			/>
 			<AnySwitch
 				title="Floating Player Bar"
-				desc="Floating rounded player bar with backdrop blur"
+				desc="When disabled, the player bar becomes a square edge-to-edge bar"
 				checked={floatingPlayerBar}
 				onChange={(_: unknown, checked: boolean) => {
 					settings.floatingPlayerBar = checked;

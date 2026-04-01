@@ -7,17 +7,11 @@ import visualizerStyles from "file://styles.css?minify";
 
 export const { trace } = Tracer("[Audio Visualizer]");
 
-// Helper function for consistent logging
 const log = (message: string) => console.log(`[Audio Visualizer] ${message}`);
-const warn = (message: string) => console.warn(`[Audio Visualizer] ${message}`);
-const error = (message: string) =>
-	console.error(`[Audio Visualizer] ${message}`);
 export { Settings };
 
-// Basic config with settings
 const config = {
 	enabled: true,
-	position: "left" as "left" | "right",
 	width: 200,
 	height: 40,
 	get barCount() {
@@ -31,7 +25,6 @@ const config = {
 	},
 	sensitivity: 1.5,
 	smoothing: 0.8,
-	visualizerType: "bars" as "bars" | "waveform" | "circular",
 };
 
 // Clean up resources
@@ -49,10 +42,15 @@ let animationId: number | null = null;
 let currentAudioElement: HTMLAudioElement | null = null;
 let isSourceConnected: boolean = false;
 
-// Canvas and container elements
-let visualizerContainer: HTMLDivElement | null = null;
-let canvas: HTMLCanvasElement | null = null;
-let canvasContext: CanvasRenderingContext2D | null = null;
+// Each placement gets its own container/canvas/context
+interface VisualizerSlot {
+	container: HTMLDivElement | null;
+	canvas: HTMLCanvasElement | null;
+	ctx: CanvasRenderingContext2D | null;
+}
+
+const navSlot: VisualizerSlot = { container: null, canvas: null, ctx: null };
+const npSlot: VisualizerSlot = { container: null, canvas: null, ctx: null };
 
 // Find the audio element - this is a bit of a hack but it works
 const findAudioElement = (): HTMLAudioElement | null => {
@@ -140,10 +138,7 @@ const initializeAudioVisualizer = async (): Promise<void> => {
 			audioContext.resume().catch(() => {}); // Fire and forget
 		}
 
-		// Create UI only if it doesn't exist
-		if (!visualizerContainer) {
-			createVisualizerUI();
-		}
+		createVisualizerUI();
 
 		// Start animation only if not already running
 		if (!animationId) {
@@ -155,120 +150,116 @@ const initializeAudioVisualizer = async (): Promise<void> => {
 	}
 };
 
-// Create the visualizer UI container and canvas
-const createVisualizerUI = (): void => {
-	// Remove existing visualizer if it exists
-	removeVisualizerUI();
+const makeSlotElements = (): { container: HTMLDivElement; canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null => {
+	const container = document.createElement("div");
+	container.className = "audio-visualizer-container";
+	container.style.cssText = `
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(0, 0, 0, 0.2);
+		border-radius: 8px;
+		padding: 4px;
+		backdrop-filter: blur(10px);
+		-webkit-backdrop-filter: blur(10px);
+	`;
 
-	if (!config.enabled) return;
+	const cvs = document.createElement("canvas");
+	cvs.width = config.width;
+	cvs.height = config.height;
+	cvs.style.cssText = `
+		width: ${config.width}px;
+		height: ${config.height}px;
+		border-radius: 4px;
+	`;
 
-	// Find the search bar
-	const searchField = document.querySelector(
-		'input[class*="_searchField"]',
-	) as HTMLInputElement;
-	if (!searchField) {
-		warn("Search field not found");
-		return;
-	}
-
-	const searchContainer = searchField.parentElement;
-	if (!searchContainer) {
-		warn("Search container not found");
-		return;
-	}
-
-	// Create visualizer container
-	visualizerContainer = document.createElement("div");
-	visualizerContainer.id = "audio-visualizer-container";
-	visualizerContainer.style.cssText = `
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-${config.position === "left" ? "right" : "left"}: 12px;
-        background: rgba(0, 0, 0, 0.2);
-        border-radius: 8px;
-        padding: 4px;
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-    `;
-
-	// Create canvas
-	canvas = document.createElement("canvas");
-	canvas.width = config.width;
-	canvas.height = config.height;
-	canvas.style.cssText = `
-        width: ${config.width}px;
-        height: ${config.height}px;
-        border-radius: 4px;
-    `;
-
-	visualizerContainer.appendChild(canvas);
-	canvasContext = canvas.getContext("2d");
-
-	// Insert visualizer next to search bar
-	if (config.position === "left") {
-		searchContainer.parentElement?.insertBefore(
-			visualizerContainer,
-			searchContainer,
-		);
-	} else {
-		searchContainer.parentElement?.insertBefore(
-			visualizerContainer,
-			searchContainer.nextSibling,
-		);
-	}
+	container.appendChild(cvs);
+	const ctx = cvs.getContext("2d");
+	if (!ctx) return null;
+	return { container, canvas: cvs, ctx };
 };
 
-// Remove visualizer UI
+const clearSlot = (slot: VisualizerSlot): void => {
+	slot.container?.remove();
+	slot.container = null;
+	slot.canvas = null;
+	slot.ctx = null;
+};
+
+const ensureNavSlot = (): void => {
+	if (navSlot.container?.isConnected) return;
+	clearSlot(navSlot);
+
+	const searchField = document.querySelector('input[class*="_searchField"]') as HTMLInputElement;
+	if (!searchField) return;
+	const searchContainer = searchField.parentElement;
+	if (!searchContainer?.parentElement) return;
+
+	const els = makeSlotElements();
+	if (!els) return;
+	els.container.style.marginRight = "12px";
+	Object.assign(navSlot, els);
+	searchContainer.parentElement.insertBefore(els.container, searchContainer);
+};
+
+const ensureNpSlot = (): void => {
+	if (npSlot.container?.isConnected) return;
+	clearSlot(npSlot);
+
+	const artistInfo = document.querySelector('[data-test="artist-info"]');
+	if (!artistInfo) return;
+	const leftContent = artistInfo.parentElement;
+	if (!leftContent) return;
+
+	const els = makeSlotElements();
+	if (!els) return;
+	els.container.style.marginLeft = "12px";
+	Object.assign(npSlot, els);
+	leftContent.insertBefore(els.container, artistInfo.nextSibling);
+};
+
+const createVisualizerUI = (): void => {
+	if (!config.enabled) return;
+	ensureNavSlot();
+	ensureNpSlot();
+};
+
 const removeVisualizerUI = (): void => {
-	if (visualizerContainer) {
-		visualizerContainer.remove();
-		visualizerContainer = null;
-		canvas = null;
-		canvasContext = null;
-	}
+	clearSlot(navSlot);
+	clearSlot(npSlot);
 };
 
 // Animation loop for rendering visualizer
 const animate = (): void => {
-	if (!canvasContext || !canvas) {
-		animationId = null;
+	// Re-attach slots that got disconnected from the DOM
+	createVisualizerUI();
+
+	const slots = [navSlot, npSlot].filter(s => s.ctx && s.canvas);
+	if (slots.length === 0) {
+		animationId = requestAnimationFrame(animate);
 		return;
 	}
 
-	// Update canvas color in case it changed
-	canvasContext.fillStyle = config.color;
-	canvasContext.strokeStyle = config.color;
-
-	// Check if we have real audio data - this might not be needed but its a good idea
 	let hasRealAudio = false;
 	if (analyser && dataArray) {
 		analyser.getByteFrequencyData(dataArray);
-		// Check if there's actual audio signal (not just silence)
 		const avgVolume =
 			dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
-		hasRealAudio = avgVolume > 5; // Threshold for detecting actual audio
+		hasRealAudio = avgVolume > 5;
 	}
 
-	// Clear canvas
-	canvasContext.clearRect(0, 0, canvas.width, canvas.height);
+	for (const slot of slots) {
+		const ctx = slot.ctx!;
+		const cvs = slot.canvas!;
+		ctx.fillStyle = config.color;
+		ctx.strokeStyle = config.color;
+		ctx.clearRect(0, 0, cvs.width, cvs.height);
 
-	if (hasRealAudio && analyser && dataArray) {
-		// Draw real audio visualization
-		switch (config.visualizerType) {
-			case "bars": // Is implemented YAYYY (default)
-				drawBars();
-				break;
-			case "waveform": // Not implemented yet
-				drawWaveform();
-				break;
-			case "circular": // Not implemented yet
-				drawCircular();
-				break;
+		if (hasRealAudio && analyser && dataArray) {
+			drawBars(ctx, cvs);
+		} else {
+			drawScrollingWave(ctx, cvs);
 		}
-	} else {
-		// Draw cool scrolling wave effect when no audio
-		drawScrollingWave();
 	}
 
 	animationId = requestAnimationFrame(animate);
@@ -291,67 +282,54 @@ const drawRoundedRect = (
 	ctx.fill();
 };
 
-// Draw scrolling wave effect when no audio is detected
-const drawScrollingWave = (): void => {
-	if (!canvasContext || !canvas) return;
-
-	waveTime += 0.05; // Speed of wave animation
+const drawScrollingWave = (ctx: CanvasRenderingContext2D, cvs: HTMLCanvasElement): void => {
+	waveTime += 0.05 / [navSlot, npSlot].filter(s => s.ctx).length;
 
 	const barCount = config.barCount;
-	const barWidth = canvas.width / barCount;
-	const maxHeight = canvas.height * 0.6;
+	const barWidth = cvs.width / barCount;
+	const maxHeight = cvs.height * 0.6;
 
-	canvasContext.fillStyle = config.color;
+	ctx.fillStyle = config.color;
 
 	for (let i = 0; i < barCount; i++) {
-		// Create a sine wave that scrolls back and forth
 		const x = i / barCount;
 		const wave1 = Math.sin(x * Math.PI * 2 + waveTime) * 0.3;
 		const wave2 = Math.sin(x * Math.PI * 4 + waveTime * 1.3) * 0.2;
 		const wave3 = Math.sin(x * Math.PI * 6 + waveTime * 0.7) * 0.1;
-
-		// Combine waves for complex pattern
-		const combinedWave = (wave1 + wave2 + wave3 + 1) / 2; // Normalize to 0-1
-
-		// Add a traveling wave effect
+		const combinedWave = (wave1 + wave2 + wave3 + 1) / 2;
 		const travelWave = Math.sin(x * Math.PI * 3 - waveTime * 2) * 0.5 + 0.5;
-
-		// Final height calculation
-		const barHeight = maxHeight * combinedWave * travelWave * 0.8 + 2; // Minimum height of 2px
+		const barHeight = maxHeight * combinedWave * travelWave * 0.8 + 2;
 
 		const xPos = i * barWidth;
-		const yPos = (canvas.height - barHeight) / 2;
+		const yPos = (cvs.height - barHeight) / 2;
 
-		// Draw rounded or square bars based on setting
 		if (config.barRounding) {
-			drawRoundedRect(canvasContext, xPos, yPos, barWidth - 1, barHeight, 2);
+			drawRoundedRect(ctx, xPos, yPos, barWidth - 1, barHeight, 2);
 		} else {
-			canvasContext.fillRect(xPos, yPos, barWidth - 1, barHeight);
+			ctx.fillRect(xPos, yPos, barWidth - 1, barHeight);
 		}
 	}
 };
 
-// Draw frequency bars - default
-const drawBars = (): void => {
-	if (!canvasContext || !dataArray || !canvas) return;
+const drawBars = (ctx: CanvasRenderingContext2D, cvs: HTMLCanvasElement): void => {
+	if (!dataArray) return;
 
-	const barWidth = canvas.width / config.barCount;
-	const heightScale = canvas.height / 255;
+	const barWidth = cvs.width / config.barCount;
+	const heightScale = cvs.height / 255;
 
-	canvasContext.fillStyle = config.color;
+	ctx.fillStyle = config.color;
 
 	for (let i = 0; i < config.barCount; i++) {
 		const dataIndex = Math.floor(i * (dataArray.length / config.barCount));
 		const barHeight = dataArray[dataIndex] * config.sensitivity * heightScale;
 
 		const x = i * barWidth;
-		const y = canvas.height - barHeight;
+		const y = cvs.height - barHeight;
 
-		// Draw rounded or square bars based on setting
 		if (config.barRounding) {
-			drawRoundedRect(canvasContext, x, y, barWidth - 1, barHeight, 2);
+			drawRoundedRect(ctx, x, y, barWidth - 1, barHeight, 2);
 		} else {
-			canvasContext.fillRect(x, y, barWidth - 1, barHeight);
+			ctx.fillRect(x, y, barWidth - 1, barHeight);
 		}
 	}
 };
@@ -412,23 +390,23 @@ const drawBars = (): void => {
 //     }
 // };
 
-// Update visualizer settings
 const updateAudioVisualizer = (): void => {
 	if (analyser) {
-		// use a fixed size that provides enough frequency bins
-		analyser.fftSize = 512; // Fixed power of 2 - important
+		analyser.fftSize = 512;
 		analyser.smoothingTimeConstant = config.smoothing;
 		dataArray = new Uint8Array(analyser.frequencyBinCount);
 	}
 
-	if (canvas) {
-		canvas.width = config.width;
-		canvas.height = config.height;
-		canvas.style.width = `${config.width}px`;
-		canvas.style.height = `${config.height}px`;
+	for (const slot of [navSlot, npSlot]) {
+		if (slot.canvas) {
+			slot.canvas.width = config.width;
+			slot.canvas.height = config.height;
+			slot.canvas.style.width = `${config.width}px`;
+			slot.canvas.style.height = `${config.height}px`;
+		}
 	}
 
-	// Recreate UI if position changed
+	removeVisualizerUI();
 	createVisualizerUI();
 };
 
