@@ -344,21 +344,6 @@ export const Settings = () => {
 					}
 				}}
 			/>
-			<AnySwitch
-				title="Player Bar Tint"
-				desc="Apply a tint overlay to the player bar; disable to let your theme control it"
-				checked={playerBarTintEnabled}
-				onChange={(_: unknown, checked: boolean) => {
-					settings.playerBarTintEnabled = checked;
-					setPlayerBarTintEnabled(checked);
-					if (!checked) {
-						setShowTintColorPicker(false);
-						setShouldRenderTintPicker(false);
-						setIsTintAnimatingIn(false);
-					}
-					window.updateRadiantLyricsPlayerBarTint?.();
-				}}
-			/>
 			{floatingPlayerBar && (
 				<>
 					<LunaNumberSetting
@@ -389,8 +374,7 @@ export const Settings = () => {
 					/>
 				</>
 			)}
-			{playerBarTintEnabled &&
-				(() => {
+			{(() => {
 				const closeTintColorPicker = () => {
 					setIsTintAnimatingIn(false);
 					setTimeout(() => {
@@ -462,12 +446,13 @@ export const Settings = () => {
 				];
 
 				const allTintColors = [...tintColorPresets, ...tintCustomColors];
+				const tintPickerControlsDisabled = !playerBarTintEnabled;
 
 				return (
 					<div style={{ position: "relative" }}>
 						<LunaNumberSetting
 							title="Player Bar Tint Strength"
-							desc="Tint color & opacity (0-10, default: 5; 0 also disables the tint)"
+							desc="Tint color & opacity (0-10, default: 5; use the picker toggle to disable it entirely)"
 							min={0}
 							max={10}
 							step={1}
@@ -578,7 +563,9 @@ export const Settings = () => {
 									>
 										{allTintColors.map((color, index) => {
 											const isCustomColor = tintCustomColors.includes(color);
-											const isHovered = tintHoveredColorIndex === index;
+											const isHovered =
+												!tintPickerControlsDisabled &&
+												tintHoveredColorIndex === index;
 											return (
 												// biome-ignore lint/a11y/noStaticElementInteractions: cosmetic hover tracking on wrapper containing interactive buttons
 												<div
@@ -587,14 +574,27 @@ export const Settings = () => {
 														position: "relative",
 														width: "32px",
 														height: "32px",
-														cursor: "pointer",
+														cursor: tintPickerControlsDisabled
+															? "not-allowed"
+															: "pointer",
+														opacity: tintPickerControlsDisabled ? 0.4 : 1,
 													}}
-													onMouseEnter={() => setTintHoveredColorIndex(index)}
-													onMouseLeave={() => setTintHoveredColorIndex(null)}
+													onMouseEnter={() => {
+														if (!tintPickerControlsDisabled) {
+															setTintHoveredColorIndex(index);
+														}
+													}}
+													onMouseLeave={() => {
+														if (!tintPickerControlsDisabled) {
+															setTintHoveredColorIndex(null);
+														}
+													}}
 												>
 													<button
 														type="button"
+														disabled={tintPickerControlsDisabled}
 														onClick={() => {
+															if (tintPickerControlsDisabled) return;
 															updateTintColor(color);
 															closeTintColorPicker();
 														}}
@@ -607,14 +607,21 @@ export const Settings = () => {
 																	? "2px solid #fff"
 																	: "1px solid rgba(255,255,255,0.2)",
 															background: color,
-															cursor: "pointer",
+															cursor: tintPickerControlsDisabled
+																? "not-allowed"
+																: "pointer",
 															transition: "all 0.2s ease",
+															filter: tintPickerControlsDisabled
+																? "grayscale(0.9)"
+																: "none",
 														}}
 													/>
 													{isCustomColor && (
 														<button
 															type="button"
+															disabled={tintPickerControlsDisabled}
 															onClick={(e) => {
+																if (tintPickerControlsDisabled) return;
 																e.stopPropagation();
 																removeTintCustomColor(color);
 															}}
@@ -628,12 +635,18 @@ export const Settings = () => {
 																border: "1px solid rgba(255,255,255,0.8)",
 																background: "rgba(0,0,0,0.8)",
 																color: "#fff",
-																cursor: "pointer",
+																cursor: tintPickerControlsDisabled
+																	? "not-allowed"
+																	: "pointer",
 																fontSize: "10px",
 																display: "flex",
 																alignItems: "center",
 																justifyContent: "center",
-																opacity: isHovered ? 1 : 0,
+																opacity: tintPickerControlsDisabled
+																	? 0.45
+																	: isHovered
+																		? 1
+																		: 0,
 																transition: "opacity 0.2s ease",
 																zIndex: 10,
 															}}
@@ -646,10 +659,84 @@ export const Settings = () => {
 										})}
 									</div>
 
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											justifyContent: "space-between",
+											marginBottom: "12px",
+											padding: "10px 12px",
+											borderRadius: "10px",
+											background: "rgba(255,255,255,0.06)",
+											border: "1px solid rgba(255,255,255,0.08)",
+										}}
+									>
+										<div>
+											<div
+												style={{
+													color: "#fff",
+													fontSize: "13px",
+													fontWeight: "bold",
+													marginBottom: "2px",
+												}}
+											>
+												Enable Player Bar Tint
+											</div>
+											<div
+												style={{
+													color: "rgba(255,255,255,0.6)",
+													fontSize: "11px",
+												}}
+											>
+												Disable to let your theme control the player bar
+											</div>
+										</div>
+										<button
+											type="button"
+											aria-pressed={playerBarTintEnabled}
+											onClick={() => {
+												const nextChecked = !playerBarTintEnabled;
+												settings.playerBarTintEnabled = nextChecked;
+												setPlayerBarTintEnabled(nextChecked);
+												window.updateRadiantLyricsPlayerBarTint?.();
+											}}
+											style={{
+												width: "44px",
+												height: "24px",
+												borderRadius: "999px",
+												border: "1px solid rgba(255,255,255,0.15)",
+												background: playerBarTintEnabled
+													? "rgba(99,102,241,0.9)"
+													: "rgba(255,255,255,0.12)",
+												cursor: "pointer",
+												padding: "2px",
+												position: "relative",
+												transition: "all 0.2s ease",
+												flexShrink: 0,
+											}}
+										>
+											<div
+												style={{
+													width: "18px",
+													height: "18px",
+													borderRadius: "50%",
+													background: "#fff",
+													transform: playerBarTintEnabled
+														? "translateX(20px)"
+														: "translateX(0)",
+													transition: "transform 0.2s ease",
+													boxShadow: "0 2px 6px rgba(0,0,0,0.35)",
+												}}
+											/>
+										</button>
+									</div>
+
 									<div style={{ marginBottom: "12px" }}>
 										<div
 											style={{
-												color: "rgba(255,255,255,0.7)",
+												color: tintPickerControlsDisabled
+													? "rgba(255,255,255,0.4)"
+													: "rgba(255,255,255,0.7)",
 												fontSize: "12px",
 												marginBottom: "6px",
 											}}
@@ -661,13 +748,16 @@ export const Settings = () => {
 												display: "flex",
 												gap: "8px",
 												alignItems: "center",
+												opacity: tintPickerControlsDisabled ? 0.5 : 1,
 											}}
 										>
 											<input
 												type="text"
 												value={tintCustomInput}
 												onChange={(e) => setTintCustomInput(e.target.value)}
+												disabled={tintPickerControlsDisabled}
 												onKeyDown={(e) => {
+													if (tintPickerControlsDisabled) return;
 													if (e.key === "Enter") {
 														updateTintColor(tintCustomInput);
 														addTintCustomColor();
@@ -684,11 +774,16 @@ export const Settings = () => {
 													fontSize: "14px",
 													fontFamily: "monospace",
 													boxSizing: "border-box",
+													cursor: tintPickerControlsDisabled
+														? "not-allowed"
+														: "text",
 												}}
 											/>
 											<button
 												type="button"
+												disabled={tintPickerControlsDisabled}
 												onClick={() => {
+													if (tintPickerControlsDisabled) return;
 													updateTintColor(tintCustomInput);
 													addTintCustomColor();
 												}}
@@ -699,7 +794,9 @@ export const Settings = () => {
 													border: "1px solid rgba(255,255,255,0.3)",
 													background: "rgba(255,255,255,0.15)",
 													color: "#fff",
-													cursor: "pointer",
+													cursor: tintPickerControlsDisabled
+														? "not-allowed"
+														: "pointer",
 													fontSize: "16px",
 													display: "flex",
 													alignItems: "center",
@@ -707,10 +804,12 @@ export const Settings = () => {
 													transition: "all 0.2s ease",
 												}}
 												onMouseEnter={(e) => {
+													if (tintPickerControlsDisabled) return;
 													e.currentTarget.style.background =
 														"rgba(255,255,255,0.25)";
 												}}
 												onMouseLeave={(e) => {
+													if (tintPickerControlsDisabled) return;
 													e.currentTarget.style.background =
 														"rgba(255,255,255,0.15)";
 												}}
