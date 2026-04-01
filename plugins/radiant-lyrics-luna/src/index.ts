@@ -105,13 +105,19 @@ const applyPlayerBarTintToElement = (): void => {
 		'[data-test="footer-player"]',
 	) as HTMLElement;
 	if (!footerPlayer) return;
-	const alpha = settings.playerBarTint / 10;
-	const { r, g, b } = hexToRgb(settings.playerBarTintColor);
-	footerPlayer.style.setProperty(
-		"background-color",
-		`rgba(${r}, ${g}, ${b}, ${alpha})`,
-		"important",
-	);
+	const tintEnabled =
+		settings.playerBarTintEnabled && settings.playerBarTint > 0;
+	if (tintEnabled) {
+		const alpha = settings.playerBarTint / 10;
+		const { r, g, b } = hexToRgb(settings.playerBarTintColor);
+		footerPlayer.style.setProperty(
+			"background-color",
+			`rgba(${r}, ${g}, ${b}, ${alpha})`,
+			"important",
+		);
+	} else {
+		footerPlayer.style.removeProperty("background-color");
+	}
 	if (settings.floatingPlayerBar) {
 		footerPlayer.style.setProperty(
 			"border-radius",

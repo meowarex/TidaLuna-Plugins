@@ -25,6 +25,7 @@ export const settings = await ReactiveStore.getPluginStorage("RadiantLyrics", {
 	playerBarVisible: false,
 	qualityProgressColor: true,
 	floatingPlayerBar: true,
+	playerBarTintEnabled: true,
 	playerBarTint: 5,
 	playerBarTintColor: "#000000" as string,
 	playerBarTintCustomColors: [] as string[],
@@ -91,6 +92,9 @@ export const Settings = () => {
 	);
 	const [floatingPlayerBar, setFloatingPlayerBar] = React.useState(
 		settings.floatingPlayerBar,
+	);
+	const [playerBarTintEnabled, setPlayerBarTintEnabled] = React.useState(
+		settings.playerBarTintEnabled,
 	);
 	const [playerBarTint, setPlayerBarTint] = React.useState(
 		settings.playerBarTint,
@@ -340,6 +344,21 @@ export const Settings = () => {
 					}
 				}}
 			/>
+			<AnySwitch
+				title="Player Bar Tint"
+				desc="Apply a tint overlay to the player bar; disable to let your theme control it"
+				checked={playerBarTintEnabled}
+				onChange={(_: unknown, checked: boolean) => {
+					settings.playerBarTintEnabled = checked;
+					setPlayerBarTintEnabled(checked);
+					if (!checked) {
+						setShowTintColorPicker(false);
+						setShouldRenderTintPicker(false);
+						setIsTintAnimatingIn(false);
+					}
+					window.updateRadiantLyricsPlayerBarTint?.();
+				}}
+			/>
 			{floatingPlayerBar && (
 				<>
 					<LunaNumberSetting
@@ -370,7 +389,8 @@ export const Settings = () => {
 					/>
 				</>
 			)}
-			{(() => {
+			{playerBarTintEnabled &&
+				(() => {
 				const closeTintColorPicker = () => {
 					setIsTintAnimatingIn(false);
 					setTimeout(() => {
@@ -446,8 +466,8 @@ export const Settings = () => {
 				return (
 					<div style={{ position: "relative" }}>
 						<LunaNumberSetting
-							title="Player Bar Tint"
-							desc="Tint color & opacity (0-10, default: 5)"
+							title="Player Bar Tint Strength"
+							desc="Tint color & opacity (0-10, default: 5; 0 also disables the tint)"
 							min={0}
 							max={10}
 							step={1}
