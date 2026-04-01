@@ -43,6 +43,18 @@
 	backface-visibility: hidden;
 }
 
+/* Hide Tidal's native now-playing background color overlay */
+[data-test="new-now-playing"] > [class*="_background_"] {
+	/* biome-ignore lint: Must override native album-art-derived background */
+	display: none !important;
+}
+
+/* Ensure the now-playing container itself is transparent */
+[class*="_nowPlayingContainer"] {
+	/* biome-ignore lint: Must override any inline background styles */
+	background: transparent !important;
+}
+
 /* Now Playing Background Container Optimization */
 .now-playing-background-container {
 	position: absolute;
@@ -50,12 +62,20 @@
 	top: 0;
 	width: 100%;
 	height: 100%;
-	z-index: -3;
+	z-index: 0;
 	pointer-events: none;
 	overflow: hidden;
 	/* Hardware acceleration */
 	transform: translateZ(0);
 	backface-visibility: hidden;
+}
+
+/* Ensure now-playing content renders above the dynamic background */
+[data-test="new-now-playing"] > header,
+[data-test="new-now-playing"] > [class*="_content_"],
+[data-test="new-now-playing"] > .unhide-ui-button {
+	position: relative;
+	z-index: 1;
 }
 
 /* Optimized keyframe animations with GPU acceleration */
@@ -89,34 +109,27 @@
 	filter: blur(10px) brightness(0.4) contrast(1.1) !important;
 }
 
-/* Make Notification Feed sidebar transparent */
+/* Make app chrome transparent for cover-everywhere background */
 body,
 #wimp,
 main,
 [class^="_sidebarWrapper"],
 [class^="_mainContainer"],
-[class*="smallHeader"],
 [data-test="main-layout-sidebar-wrapper"],
 [data-test="main-layout-header"],
 [data-test="feed-sidebar"],
-[data-test="stream-metadata"],
 [data-test="footer-player"],
-/* Notification Feed sidebar specific container */
-	[class^="_feedSidebarVStack"],
+[class^="_feedSidebarVStack"],
 [class^="_feedSidebarSpacer"],
 [class^="_feedSidebarItem"],
 [class^="_feedSidebarItemDiv"],
-[class^="_cellContainer"],
-[class^="_cellTextContainer"] {
+[class^="_cellContainer"] {
 	/* biome-ignore lint: Ensure background is fully cleared under theme CSS */
 	background: unset !important;
 }
 
-/* Make sidebar and player bar semi-transparent with optimized backdrop-filter */
-[data-test="footer-player"],
-[data-test="main-layout-sidebar-wrapper"],
-[class^="_bar"],
-[class^="_sidebarItem"]:hover {
+/* Make sidebar semi-transparent with optimized backdrop-filter */
+[data-test="main-layout-sidebar-wrapper"] {
 	/* biome-ignore lint: Must beat app inline styles for translucency */
 	background-color: rgba(0, 0, 0, 0.3) !important;
 	/* biome-ignore lint: Must beat app inline styles for translucency */
@@ -126,10 +139,7 @@ main,
 }
 
 /* Performance mode: reduce backdrop blur */
-.performance-mode [data-test="footer-player"],
-.performance-mode [data-test="main-layout-sidebar-wrapper"],
-.performance-mode [class^="_bar"],
-.performance-mode [class^="_sidebarItem"]:hover {
+.performance-mode [data-test="main-layout-sidebar-wrapper"] {
 	/* biome-ignore lint: Performance mode style requires priority */
 	backdrop-filter: blur(5px) !important;
 	/* biome-ignore lint: Performance mode style requires priority */
@@ -162,10 +172,4 @@ main,
 [data-test="feed-item"] {
 	/* biome-ignore lint: Match theme transparency */
 	background-color: transparent !important;
-}
-
-/* Remove bottom gradient */
-[class^="_bottomGradient"] {
-	/* biome-ignore lint: Explicitly remove conflicting gradient */
-	display: none !important;
 }

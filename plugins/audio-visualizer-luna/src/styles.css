@@ -1,50 +1,40 @@
-/* Audio Visualizer CSS - Only applies to the Visualizer */
+/* Audio Visualizer CSS */
 
-#audio-visualizer-container {
+.audio-visualizer-container {
 	transition: all 0.3s ease-in-out;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 	border: 1px solid rgba(255, 255, 255, 0.1);
+	animation: av-fadeIn 0.5s ease-out;
 }
 
-#audio-visualizer-container:hover {
+.audio-visualizer-container:hover {
 	transform: scale(1.02);
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
-#audio-visualizer-container canvas {
+.audio-visualizer-container canvas {
 	display: block;
 	transition: all 0.3s ease-in-out;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-	#audio-visualizer-container {
+	.audio-visualizer-container {
 		margin: 4px;
 		padding: 2px;
 	}
 
-	#audio-visualizer-container canvas {
+	.audio-visualizer-container canvas {
 		max-width: 150px;
 		max-height: 30px;
 	}
 }
 
-/* Where to put the thingy */
-[class*="_searchField"] {
-	transition: all 0.3s ease-in-out;
-}
-
-[data-type="search-field"] {
-	min-width: 220px !important;
-}
-
-/* Shadow when active - doesnt seem to only apply when active but thats better */
-#audio-visualizer-container.active {
+.audio-visualizer-container.active {
 	box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
 }
 
-/* Fade in animation */
-@keyframes fadeIn {
+@keyframes av-fadeIn {
 	from {
 		opacity: 0;
 		transform: scale(0.8);
@@ -55,6 +45,6 @@
 	}
 }
 
-#audio-visualizer-container {
-	animation: fadeIn 0.5s ease-out;
+[data-type="search-field"] {
+	min-width: 220px !important;
 }

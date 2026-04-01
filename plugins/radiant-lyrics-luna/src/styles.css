@@ -11,8 +11,6 @@
 /* Rounded corners */
 [class*="_thumbnail_"],
 [class*="_imageWrapper_"],
-[class*="_coverImage_"],
-[class*="_overlayIconWrapperAlbum_"],
 [class*="_playButton_"] {
 	border-radius: 5px !important;
 }
@@ -20,18 +18,22 @@
 
 /* MARKER: HideUI CSS*/
 
-/* Only apply styles when UI is hidden */
-.radiant-lyrics-ui-hidden [class*="tabItems"] {
+/* Only apply styles when UI is hidden — hide toggle buttons */
+.radiant-lyrics-ui-hidden [data-test="toggle-lyrics"],
+.radiant-lyrics-ui-hidden [data-test="toggle-credits"],
+.radiant-lyrics-ui-hidden [data-test="toggle-similar-tracks"] {
 	opacity: 0 !important;
 	transition: opacity 0.4s ease-in-out;
 }
 
-.radiant-lyrics-ui-hidden [class*="tabItems"]:hover {
+.radiant-lyrics-ui-hidden [data-test="toggle-lyrics"]:hover,
+.radiant-lyrics-ui-hidden [data-test="toggle-credits"]:hover,
+.radiant-lyrics-ui-hidden [data-test="toggle-similar-tracks"]:hover {
 	opacity: 1 !important;
 }
 
 /* Hide header container (search, minimize, fullscreen) when UI is hidden */
-.radiant-lyrics-ui-hidden [data-test="header-container"] {
+.radiant-lyrics-ui-hidden [data-test="header"] {
 	opacity: 0 !important;
 	visibility: hidden !important;
 	transition: opacity 0.4s ease-in-out, visibility 0s linear 0.4s;
@@ -79,8 +81,8 @@
 
 /* MARKER: Sticky Lyrics CSS */
 
-/* Lyrics tab */
-[data-test="tabs-lyrics"]:has(.sticky-lyrics-trigger) {
+/* Lyrics toggle button */
+[data-test="toggle-lyrics"]:has(.sticky-lyrics-trigger) {
 	position: relative !important;
 	padding-right: 38px !important;
 }
@@ -115,35 +117,41 @@
 	transition: background 0.2s ease;
 }
 
-/* When Lyrics tab is active — show divider & make icon black*/
-[data-test="tabs-lyrics"][aria-selected="true"] .sticky-lyrics-trigger {
-	color: black;
+/* When Lyrics toggle is pressed — show divider & adjust icon */
+[data-test="toggle-lyrics"][aria-pressed="true"] .sticky-lyrics-trigger {
+	color: rgb(30, 30, 30);
 	cursor: pointer;
 }
 
-[data-test="tabs-lyrics"][aria-selected="true"] .sticky-lyrics-trigger::before {
-	background: rgba(0, 0, 0, 0.25);
+[data-test="toggle-lyrics"][aria-pressed="true"] .sticky-lyrics-trigger::before {
+	background: rgba(0, 0, 0, 0.15);
 }
 
-[data-test="tabs-lyrics"][aria-selected="true"] .sticky-lyrics-trigger:hover {
-	color: rgba(0, 0, 0, 0.6);
+[data-test="toggle-lyrics"][aria-pressed="true"] .sticky-lyrics-trigger:hover {
+	color: rgba(0, 0, 0, 0.5);
 }
 
-/* Square the Lyrics button bottom corners when dropdown is open */
-[data-test="tabs-lyrics"].sticky-lyrics-open {
-	border-bottom-left-radius: 0 !important;
-	border-bottom-right-radius: 0 !important;
+/* Animate widening when dropdown opens */
+[data-test="toggle-lyrics"]:has(.sticky-lyrics-trigger) {
+	transition: min-width 0.12s ease-out;
 }
 
-/* Dropdown */
+/* Reduce top rounding, square bottom, and kill hover tint when dropdown is open */
+body.rl-dropdown-open [data-test="toggle-lyrics"] {
+	border-radius: 12px 12px 0 0 !important;
+	background-color: rgb(255, 255, 255) !important;
+	min-width: 150px !important;
+}
+
+/* Dropdown — right-aligned under the Lyrics button */
 .sticky-lyrics-dropdown {
 	position: fixed;
-	background: white;
-	border-radius: 0 0 16px 16px;
+	background: rgb(255, 255, 255);
+	border-radius: 0 0 12px 12px;
 	padding: 8px 12px 10px;
 	box-sizing: border-box;
 	z-index: 10000;
-	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
 	clip-path: inset(0 -20px -20px -20px);
 	animation: stickyLyricsDropdownIn 0.12s ease-out;
 }
@@ -151,11 +159,11 @@
 @keyframes stickyLyricsDropdownIn {
 	from {
 		opacity: 0;
-		clip-path: inset(0 0 100% 0);
+		transform: translateY(-4px);
 	}
 	to {
 		opacity: 1;
-		clip-path: inset(0 0 0 0);
+		transform: translateY(0);
 	}
 }
 
@@ -170,7 +178,7 @@
 .sticky-lyrics-label {
 	font-size: 11px;
 	font-weight: 600;
-	color: rgba(0, 0, 0, 1);
+	color: rgba(0, 0, 0, 0.8);
 	white-space: nowrap;
 }
 
@@ -196,7 +204,7 @@
 	left: 0;
 	right: 0;
 	bottom: 0;
-	background-color: rgba(0, 0, 0, 0.2);
+	background-color: rgba(0, 0, 0, 0.15);
 	transition: 0.3s;
 	border-radius: 18px;
 }
@@ -211,15 +219,16 @@
 	background-color: white;
 	transition: 0.3s;
 	border-radius: 50%;
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 .sticky-lyrics-switch input:checked + .sticky-lyrics-slider {
-	background-color: black;
+	background-color: rgb(30, 30, 30);
 }
 
 .sticky-lyrics-switch input:checked + .sticky-lyrics-slider::before {
 	transform: translateX(16px);
+	background-color: rgb(255, 255, 255);
 }
 
 /* Segmented control (Line | Word | Syllable) */
@@ -230,7 +239,7 @@
 
 .rl-seg-control {
 	display: flex;
-	background: rgba(0, 0, 0, 0.08);
+	background: rgba(0, 0, 0, 0.06);
 	border-radius: 10px;
 	padding: 2px;
 	gap: 2px;
@@ -241,7 +250,7 @@
 	flex: 1;
 	border: none;
 	background: transparent;
-	color: rgba(0, 0, 0, 0.5);
+	color: rgba(0, 0, 0, 0.4);
 	font-size: 10px;
 	font-weight: 600;
 	padding: 5px 0;
@@ -253,99 +262,32 @@
 
 .rl-seg-btn:hover {
 	color: rgba(0, 0, 0, 0.7);
-	background: rgba(0, 0, 0, 0.05);
+	background: rgba(0, 0, 0, 0.06);
 }
 
 .rl-seg-btn.rl-seg-active {
-	background: white;
-	color: black;
+	background: rgb(30, 30, 30);
+	color: rgb(255, 255, 255);
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
+
 
 /* MARKER: PATCHES (Random Fixes for Tidals Changes) */
 /* These change allot so i gave them their own section */
 
-/* Fixes the new Sticky Header Tidal added.. in the shittest jankiest way possible */
-/* [class*="_stickyHeader"] {
-	background: transparent !important;
-	backdrop-filter: blur(50px);
-	background-color: transparent !important;
-	width: fit-content !important;
-	padding-right: 3.5% !important;
-	-webkit-mask-image:
-		linear-gradient(to bottom, black 60%, transparent),
-		linear-gradient(to right, black 85%, transparent) !important;
-	mask-image:
-		linear-gradient(to bottom, black 60%, transparent),
-		linear-gradient(to right, black 85%, transparent) !important;
-	-webkit-mask-composite: source-in !important;
-	mask-composite: intersect !important;
-	padding-bottom: 5px !important;
+/* Remove max-width cap on now-playing content */
+[class*="_contentInner"] {
+	max-width: none !important;
 }
 
-[class*="_playQueueItems"]{
-	border-radius: 2.5px 0 0 0 !important;
+/* Round now-playing artwork corners */
+[data-test="now-playing-artwork"] {
+	/* biome-ignore lint: Override flat corners */
+	border-radius: 10px !important;
 }
 
-[data-test="playqueue-sticky-clear-active-items"] {
-	visibility: collapse !important;
-	width: 0px !important;
-}
-
-[data-test="playqueue-sticky-clear-source-items"] {
-	visibility: collapse !important;
-	width: 0px !important;
-} */
-
-
-/* Remove the background color from the small header */
-[class*="_smallHeader"]::before {
-	background-color: transparent !important;
-}
-
-/* fixes Tidals broken mini cover art padding | Cheers Aya <3*/
-._imageBorder_110890a {
-	filter: opacity(0);
-}
-._container_14bcbd4._playingFrom_79b167e {
-	transform: scale(1.01) translatex(.1em);
-}
-._leftColumn_aaf28de {
-	min-height: 110%;
-	transform: translatey(-.23em);
-}
-._imageryContainer_f99fc07.image {
-	transform: scale(1.03) translatey(.2em) translatex(.1em);
-	background-color: #00000000;
-	padding: 0em !important;
-}
-._image_145331a._cellImage_0ef8dd3 {
-	border-radius: .7em !important;
-}
-
-[data-test="footer-player"] {
-	._container_14bcbd4._playingFrom_79b167e > ._text_15008b2._medium20_1lyag_192._marketText_1lyag_1 {
-		transform: translatey(-.2em);
-	}
-	[class="image _imageryContainer_f99fc07"] {
-		transform: translatey(.3em) !important;
-	}
-	._image_145331a._cellImage_0ef8dd3 {
-		border-radius: .25em !important;
-	}
-	._toggleButton_809eee8 {
-		transform: translateY(-.22em);
-	}
-	[class="image _imageryContainer_f99fc07"]:hover {
-		[class="_cellImage_0ef8dd3 _image_145331a"] {
-			filter: brightness(.3);
-		}
-	}
-	._notFullscreenOverlay_1442d60 {
-		background: none !important;
-		transition: 0ms;
-	}
-	._notFullscreenOverlay_1442d60 ._nowPlayingButton_c1a86fa {
-		background-color: rgba(245, 245, 220, 0);
-	}
+/* Hide the Overlay Scrollbar (people just use mouse scroll) */
+.os-scrollbar {
+	display: none !important;
+	pointer-events: none !important;
 }

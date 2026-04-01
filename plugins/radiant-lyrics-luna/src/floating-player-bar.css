@@ -1,9 +1,22 @@
-/* Floating Rounded Player Bar from Obsidian <3 */
+/* Square Player Bar override — injected when floating is disabled */
 
 /* MARKER: Floating Player Bar CSS */
 
 [data-test="footer-player"] {
-	position: absolute !important;
-	backdrop-filter: blur(10px);
-	border: 1px solid var(--wave-color-opacity-contrast-fill-ultra-thin, rgba(255, 255, 255, 0.1)) !important;
+	/* biome-ignore lint: Override native floating position */
+	bottom: 0 !important;
+	/* biome-ignore lint: Override native floating position */
+	left: 0 !important;
+	/* biome-ignore lint: Override native floating position */
+	right: 0 !important;
+	/* biome-ignore lint: Override native floating position */
+	width: 100% !important;
+	/* biome-ignore lint: Override native floating position */
+	margin: 0 !important;
+	/* biome-ignore lint: Force square corners */
+	border-radius: 0 !important;
+	/* biome-ignore lint: Remove floating border */
+	border: none !important;
+	/* biome-ignore lint: Remove floating shadow */
+	box-shadow: none !important;
 }
