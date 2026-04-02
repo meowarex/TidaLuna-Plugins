@@ -317,6 +317,8 @@ const unlockResync = (): void => {
 		btn.disabled = false;
 		btn.style.opacity = "";
 		btn.style.cursor = "";
+		btn.setAttribute("title", "Resync Lyrics");
+		btn.setAttribute("aria-label", "Resync Lyrics");
 	}
 };
 const lockResync = (): void => {
@@ -326,6 +328,17 @@ const lockResync = (): void => {
 		btn.disabled = true;
 		btn.style.opacity = "0.3";
 		btn.style.cursor = "not-allowed";
+	}
+};
+const disableResyncNoLyrics = (): void => {
+	resyncLocked = true;
+	const btn = document.querySelector(".resync-lyrics-button") as HTMLButtonElement;
+	if (btn) {
+		btn.disabled = true;
+		btn.style.opacity = "0.3";
+		btn.style.cursor = "not-allowed";
+		btn.setAttribute("title", "Track has no lyrics");
+		btn.setAttribute("aria-label", "Track has no lyrics");
 	}
 };
 
@@ -354,6 +367,7 @@ const resyncLyrics = async (): Promise<void> => {
 		});
 		if (res.status === 404) {
 			toast("No lyrics found for this track");
+			unlockResync();
 			return;
 		}
 		if (!res.ok) {
@@ -374,6 +388,8 @@ const resyncLyrics = async (): Promise<void> => {
 			cachedLyricsKey = null;
 			cachedLyricsData = null;
 			onTrackChange();
+		} else {
+			unlockResync();
 		}
 	} catch (err) {
 		toastErr(`Resync error: ${err instanceof Error ? err.message : String(err)}`);
@@ -402,6 +418,9 @@ const createResyncButton = function (): void {
 			resyncButton.setAttribute("type", "button");
 			resyncButton.setAttribute("aria-label", "Resync Lyrics");
 			resyncButton.setAttribute("title", "Resync Lyrics");
+			resyncButton.disabled = true;
+			resyncButton.style.opacity = "0.3";
+			resyncButton.style.cursor = "not-allowed";
 
 			const iconSpan = closeButton.querySelector("span");
 			const iconSvg = closeButton.querySelector("svg");
@@ -3902,7 +3921,7 @@ const startTickLoop = (): void => {
 // Called by track change or style toggle
 const onTrackChange = async (): Promise<void> => {
 	teardown();
-	unlockResync();
+	lockResync();
 
 	const runId = ++trackChangeRunSeq;
 	isTrackChangeRunning = true;
@@ -3928,6 +3947,7 @@ const onTrackChange = async (): Promise<void> => {
 		if (token !== trackChangeToken) return;
 		if (!response) {
 			trace.log("RL API: no API lyrics available, falling back to TIDAL lines");
+			disableResyncNoLyrics();
 			const tidalTexts = getTidalLines();
 			const romanized = settings.romanizeLyrics
 				? await romanizeLines(tidalTexts)
@@ -3973,6 +3993,7 @@ const onTrackChange = async (): Promise<void> => {
 			`[RL-Syllable] Loaded "${trackInfo.title}" by "${trackInfo.artist}" — ${response.data.length} lines`,
 		);
 
+		unlockResync();
 		lyricsMode = response.type === "Word" ? "word" : "line-api";
 		if (token !== trackChangeToken) return;
 		lyricsData =
