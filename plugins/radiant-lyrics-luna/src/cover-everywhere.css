@@ -72,8 +72,7 @@
 
 /* Ensure now-playing content renders above the dynamic background */
 [data-test="new-now-playing"] > header,
-[data-test="new-now-playing"] > [class*="_content_"],
-[data-test="new-now-playing"] > .unhide-ui-button {
+[data-test="new-now-playing"] > [class*="_content_"] {
 	position: relative;
 	z-index: 1;
 }
