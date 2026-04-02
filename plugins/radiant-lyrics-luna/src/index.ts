@@ -367,12 +367,10 @@ const resyncLyrics = async (): Promise<void> => {
 		});
 		if (res.status === 404) {
 			toast("No lyrics found for this track");
-			unlockResync();
 			return;
 		}
 		if (!res.ok) {
 			toastErr(`Resync failed (${res.status})`);
-			unlockResync();
 			return;
 		}
 		const data = (await res.json()) as LyricsApiResponse & { _flush?: string };
@@ -388,12 +386,9 @@ const resyncLyrics = async (): Promise<void> => {
 			cachedLyricsKey = null;
 			cachedLyricsData = null;
 			onTrackChange();
-		} else {
-			unlockResync();
 		}
 	} catch (err) {
 		toastErr(`Resync error: ${err instanceof Error ? err.message : String(err)}`);
-		unlockResync();
 	}
 };
 
@@ -4019,16 +4014,36 @@ const onTrackChange = async (): Promise<void> => {
 			watchForRerender();
 			startTickLoop();
 		} else {
-			watchForRerender();
-			if (!nativeHasLyrics || settings.stickyLyrics || currentTrackWantsLyricsPanel()) {
-				safeTimeout(unloads, () => {
-					if (token !== trackChangeToken) return;
-					syncNativeLyricsAvailability();
-					if (settings.stickyLyrics) {
-						tryActivateStickyLyricsTab();
+			safeTimeout(unloads, () => {
+				if (token !== trackChangeToken) return;
+				syncNativeLyricsAvailability();
+				if (settings.stickyLyrics) {
+					tryActivateStickyLyricsTab();
+				}
+				if (!nativeHasLyrics) {
+					// Track had no native lyrics but API found them —
+					// force navigate to lyrics view so the panel mounts
+					setNowPlayingActiveView("lyrics");
+				}
+			}, 0);
+
+			let panelRetries = 0;
+			const waitForPanel = (): void => {
+				if (token !== trackChangeToken) return;
+				const panel = getNowPlayingLyricsPanel();
+				if (panel) {
+					if (!panel.querySelector(".rl-wbw-container") && lyricsData) {
+						hideTidalLyrics();
+						const result = buildWordSpans();
+						lines = result.lines;
+						watchForRerender();
+						startTickLoop();
 					}
-				}, 0);
-			}
+				} else if (++panelRetries < 20) {
+					safeTimeout(unloads, waitForPanel, 250);
+				}
+			};
+			safeTimeout(unloads, waitForPanel, 250);
 		}
 	} finally {
 		if (runId === trackChangeRunSeq) {
