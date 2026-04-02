@@ -3415,13 +3415,10 @@ const findScroller = (el: HTMLElement): HTMLElement => {
 	while (parent) {
 		if (boundary && !boundary.contains(parent)) break;
 		const style = window.getComputedStyle(parent);
-		if (
-			style.overflowY === "auto" ||
-			style.overflowY === "scroll" ||
-			style.overflow === "auto" ||
-			style.overflow === "scroll" ||
-			parent.scrollHeight > parent.clientHeight + 1
-		) {
+		const oy = style.overflowY;
+		const o = style.overflow;
+		const scrollable = oy === "auto" || oy === "scroll" || o === "auto" || o === "scroll";
+		if (scrollable || ((oy === "hidden" || o === "hidden") && parent.scrollHeight > parent.clientHeight + 1)) {
 			return parent;
 		}
 		parent = parent.parentElement;
