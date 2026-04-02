@@ -3249,15 +3249,20 @@ const startTidalFollowLoop = (): void => {
 	const lyricsContainer = findLyricsContainer();
 	if (!lyricsContainer) return;
 
+	const tidalSpans = lyricsContainer.querySelectorAll(
+		'span[data-test="lyrics-line"]',
+	);
+	if (tidalSpans.length === 0) return;
+
 	tidalFollowObserver = new MutationObserver(() => {
 		updateTidalFollowActiveLine();
 	});
-	tidalFollowObserver.observe(lyricsContainer, {
-		subtree: true,
-		childList: true,
-		attributes: true,
-		attributeFilter: ["class"],
-	});
+	for (const span of tidalSpans) {
+		tidalFollowObserver.observe(span, {
+			attributes: true,
+			attributeFilter: ["class"],
+		});
+	}
 
 	updateTidalFollowActiveLine();
 };
