@@ -40,6 +40,16 @@ const toastErr = (msg: string) =>
 // clean up resources
 export const unloads = new Set<LunaUnload>();
 
+let cachedPublicIP: string | undefined;
+async function getPublicIPv4(): Promise<string | undefined> {
+	if (cachedPublicIP) return cachedPublicIP;
+	try {
+		const res = await fetch("https://api.ipify.org?format=text");
+		if (res.ok) cachedPublicIP = (await res.text()).trim();
+	} catch {}
+	return cachedPublicIP;
+}
+
 // MARKER: Player Market UI (Ensure new UI is enabled)
 
 function enablePlayerMarketUI() {
@@ -359,12 +369,13 @@ const resyncLyrics = async (): Promise<void> => {
 
 	const url = `https://api.atomix.one/rl-api${params}`;
 	try {
-		const res = await fetch(url, {
-			headers: {
-				"P-Access-Token-Id": "58hy4s86",
-				"P-Access-Token": "xjehy2lfg5h5mjwotoxrcqugam",
-			},
-		});
+		const clientIP = await getPublicIPv4();
+		const resyncHeaders: Record<string, string> = {
+			"P-Access-Token-Id": "58hy4s86",
+			"P-Access-Token": "xjehy2lfg5h5mjwotoxrcqugam",
+		};
+		resyncHeaders["x-client-ip"] = clientIP ?? "null";
+		const res = await fetch(url, { headers: resyncHeaders });
 		if (res.status === 404) {
 			toast("No lyrics found for this track");
 			return;
@@ -2178,6 +2189,8 @@ const fetchLyrics = async (
 		"P-Access-Token-Id": "58hy4s86",
 		"P-Access-Token": "xjehy2lfg5h5mjwotoxrcqugam",
 	};
+	const clientIP = await getPublicIPv4();
+	rlApiHeaders["x-client-ip"] = clientIP ?? "null";
 
 	const tryFetch = async (url: string): Promise<FetchOutcome> => {
 		try {
@@ -2335,6 +2348,8 @@ const romanizeLines = async (lineTexts: string[]): Promise<string[] | null> => {
 			if (url.includes("api.atomix.one")) {
 				romanizeHeaders["P-Access-Token-Id"] = "58hy4s86";
 				romanizeHeaders["P-Access-Token"] = "xjehy2lfg5h5mjwotoxrcqugam";
+				const ip = await getPublicIPv4();
+				romanizeHeaders["x-client-ip"] = ip ?? "null";
 			}
 			const res = await fetch(url, {
 				method: "POST",
