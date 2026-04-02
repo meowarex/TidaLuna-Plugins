@@ -1,5 +1,5 @@
 // MARKER: Core Setup
-import { type LunaUnload, Tracer } from "@luna/core";
+import { type LunaUnload, Tracer, reduxStore, buildActions } from "@luna/core";
 import {
 	MediaItem,
 	observe,
@@ -27,6 +27,15 @@ import baseStyles from "file://styles.css?minify";
 // Core tracer and exports
 export const { trace } = Tracer("[Radiant Lyrics]");
 export { Settings };
+
+const toast = (msg: string) =>
+	reduxStore.dispatch(
+		buildActions["message/MESSAGE_INFO"]?.({ message: msg, category: "OTHER", severity: "INFO" }),
+	);
+const toastErr = (msg: string) =>
+	reduxStore.dispatch(
+		buildActions["message/MESSAGE_ERROR"]?.({ message: msg, category: "OTHER", severity: "ERROR" }),
+	);
 
 // clean up resources
 export const unloads = new Set<LunaUnload>();
@@ -239,95 +248,29 @@ const updateRadiantLyricsStyles = function (): void {
 // MARKER: UI Visibility Control
 // UI state shared across features
 let isHidden = false;
-let unhideButtonAutoFadeTimeout: number | null = null;
 
-// Helper to safely create a one-off timeout that clears previous if any
-const safelySetAutoFadeTimeout = (
-	existingId: number | null,
-	fn: () => void,
-	delay: number,
-): number => {
-	if (existingId != null) window.clearTimeout(existingId);
-	return window.setTimeout(fn, delay);
-};
+const EYE_OFF_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+const EYE_ON_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
 
 const updateButtonStates = function (): void {
-	const hideButton = document.querySelector(".hide-ui-button") as HTMLElement;
-	const unhideButton = document.querySelector(
-		".unhide-ui-button",
-	) as HTMLElement;
+	const toggleButton = document.querySelector(".hide-ui-button") as HTMLElement;
+	if (!toggleButton) return;
 
-	if (hideButton) {
-		if (settings.hideUIEnabled && !isHidden) {
-			hideButton.style.display = "flex";
-			// Small delay to ensure display is set first, then fade in
-			safeTimeout(
-				unloads,
-				() => {
-					hideButton.style.opacity = "1";
-					hideButton.style.visibility = "visible";
-					hideButton.style.pointerEvents = "auto";
-				},
-				50,
-			);
-		} else {
-			// Hide UI button immediately when clicked - (couldn't get the fade to work)
-			hideButton.style.display = "none";
-			hideButton.style.opacity = "0";
-			hideButton.style.visibility = "hidden";
-			hideButton.style.pointerEvents = "none";
+	if (settings.hideUIEnabled) {
+		toggleButton.style.display = "";
+		const newSvg = isHidden ? EYE_ON_SVG : EYE_OFF_SVG;
+		const label = isHidden ? "Show UI" : "Hide UI";
+		toggleButton.setAttribute("aria-label", label);
+		toggleButton.setAttribute("title", label);
+		const spanWrapper = toggleButton.querySelector("span");
+		if (spanWrapper) {
+			const svgClass = spanWrapper.querySelector("svg")?.getAttribute("class") ?? "";
+			spanWrapper.innerHTML = newSvg;
+			const svg = spanWrapper.querySelector("svg");
+			if (svg && svgClass) svg.setAttribute("class", svgClass);
 		}
-	}
-	if (unhideButton) {
-		// Clear any existing auto-fade timeout
-		if (unhideButtonAutoFadeTimeout != null) {
-			window.clearTimeout(unhideButtonAutoFadeTimeout);
-			unhideButtonAutoFadeTimeout = null;
-		}
-
-		if (settings.hideUIEnabled && isHidden) {
-			unhideButton.style.display = "flex";
-			// Remove the hide-immediately class and let it fade in smoothly
-			unhideButton.classList.remove("hide-immediately");
-			unhideButton.classList.remove("auto-faded");
-			// Small delay to ensure display is set first, then fade in - (Works for unhide button.. but not hide button.. because uhh idk)
-			safeTimeout(
-				unloads,
-				() => {
-					unhideButton.style.opacity = "1";
-					unhideButton.style.visibility = "visible";
-					unhideButton.style.pointerEvents = "auto";
-
-					// Set up auto-fade after 2 seconds
-					unhideButtonAutoFadeTimeout = safelySetAutoFadeTimeout(
-						unhideButtonAutoFadeTimeout,
-						() => {
-							if (isHidden && unhideButton && !unhideButton.matches(":hover")) {
-								unhideButton.classList.add("auto-faded");
-							}
-						},
-						2000,
-					);
-				},
-				50,
-			);
-		} else {
-			// Smooth fade out for Unhide UI button
-			unhideButton.style.opacity = "0";
-			unhideButton.style.visibility = "hidden";
-			unhideButton.style.pointerEvents = "none";
-			unhideButton.classList.remove("auto-faded");
-			// Keep display: flex to maintain transitions, then hide after fade
-			safeTimeout(
-				unloads,
-				() => {
-					if (unhideButton.style.opacity === "0") {
-						unhideButton.style.display = "none";
-					}
-				},
-				500,
-			);
-		}
+	} else {
+		toggleButton.style.display = "none";
 	}
 };
 
@@ -336,12 +279,20 @@ const toggleRadiantLyrics = function (): void {
 	const nowPlayingContainer = document.querySelector(
 		'[class*="_nowPlayingContainer"]',
 	) as HTMLElement;
+	isHidden = !isHidden;
+	updateButtonStates();
 	if (isHidden) {
-		const unhideButton = document.querySelector(
-			".unhide-ui-button",
-		) as HTMLElement;
-		if (unhideButton) unhideButton.classList.add("hide-immediately");
-		isHidden = !isHidden;
+		safeTimeout(
+			unloads,
+			() => {
+				updateRadiantLyricsStyles();
+				if (nowPlayingContainer)
+					nowPlayingContainer.classList.add("radiant-lyrics-ui-hidden");
+				document.body.classList.add("radiant-lyrics-ui-hidden");
+			},
+			50,
+		);
+	} else {
 		if (nowPlayingContainer)
 			nowPlayingContainer.classList.remove("radiant-lyrics-ui-hidden");
 		document.body.classList.remove("radiant-lyrics-ui-hidden");
@@ -354,128 +305,187 @@ const toggleRadiantLyrics = function (): void {
 			},
 			500,
 		);
-		updateButtonStates();
-	} else {
-		isHidden = !isHidden;
-		updateButtonStates();
-		safeTimeout(
-			unloads,
-			() => {
-				updateRadiantLyricsStyles();
-				if (nowPlayingContainer)
-					nowPlayingContainer.classList.add("radiant-lyrics-ui-hidden");
-				document.body.classList.add("radiant-lyrics-ui-hidden");
-			},
-			50,
-		);
 	}
 };
 
 // Create buttons
-const createHideUIButton = function (): void {
+let resyncLocked = false;
+const unlockResync = (): void => {
+	resyncLocked = false;
+	const btn = document.querySelector(".resync-lyrics-button") as HTMLButtonElement;
+	if (btn) {
+		btn.disabled = false;
+		btn.style.opacity = "";
+		btn.style.cursor = "";
+		btn.setAttribute("title", "Resync Lyrics");
+		btn.setAttribute("aria-label", "Resync Lyrics");
+	}
+};
+const lockResync = (): void => {
+	resyncLocked = true;
+	const btn = document.querySelector(".resync-lyrics-button") as HTMLButtonElement;
+	if (btn) {
+		btn.disabled = true;
+		btn.style.opacity = "0.3";
+		btn.style.cursor = "not-allowed";
+	}
+};
+const disableResyncNoLyrics = (): void => {
+	resyncLocked = true;
+	const btn = document.querySelector(".resync-lyrics-button") as HTMLButtonElement;
+	if (btn) {
+		btn.disabled = true;
+		btn.style.opacity = "0.3";
+		btn.style.cursor = "not-allowed";
+		btn.setAttribute("title", "Track has no lyrics");
+		btn.setAttribute("aria-label", "Track has no lyrics");
+	}
+};
+
+const resyncLyrics = async (): Promise<void> => {
+	if (resyncLocked) return;
+
+	const trackInfo = await getTrackInfo();
+	if (!trackInfo) {
+		trace.msg.err("Resync: could not get track info");
+		return;
+	}
+
+	lockResync();
+
+	let params = `?title=${encodeURIComponent(trackInfo.title)}&artist=${encodeURIComponent(trackInfo.artist)}`;
+	if (trackInfo.isrc) params += `&isrc=${encodeURIComponent(trackInfo.isrc)}`;
+	params += "&flush=true&platform=" + encodeURIComponent("Radiant Lyrics");
+
+	const url = `https://api.atomix.one/rl-api${params}`;
+	try {
+		const res = await fetch(url, {
+			headers: {
+				"P-Access-Token-Id": "58hy4s86",
+				"P-Access-Token": "xjehy2lfg5h5mjwotoxrcqugam",
+			},
+		});
+		if (res.status === 404) {
+			toast("No lyrics found for this track");
+			unlockResync();
+			return;
+		}
+		if (!res.ok) {
+			toastErr(`Resync failed (${res.status})`);
+			unlockResync();
+			return;
+		}
+		const data = (await res.json()) as LyricsApiResponse & { _flush?: string };
+		const flush = data?._flush ?? "";
+
+		const needsReload = flush.startsWith("Created") || flush.startsWith("Updated");
+		if (flush) {
+			toast(flush);
+		} else {
+			toast("Lyrics resynced");
+		}
+		if (needsReload || !flush) {
+			cachedLyricsKey = null;
+			cachedLyricsData = null;
+			onTrackChange();
+		} else {
+			unlockResync();
+		}
+	} catch (err) {
+		toastErr(`Resync error: ${err instanceof Error ? err.message : String(err)}`);
+		unlockResync();
+	}
+};
+
+const createResyncButton = function (): void {
 	safeTimeout(
 		unloads,
 		() => {
-			if (!settings.hideUIEnabled) return;
-			const fullscreenButton = document.querySelector(
-				'[data-test="new-now-playing-expand"]',
-			);
-			if (!fullscreenButton || !fullscreenButton.parentElement) {
-				safeTimeout(unloads, () => createHideUIButton(), 1000);
+			const closeButton = document.querySelector(
+				'[data-test="new-now-playing-close"]',
+			) as HTMLButtonElement;
+			if (!closeButton || !closeButton.parentElement) {
+				safeTimeout(unloads, () => createResyncButton(), 1000);
 				return;
 			}
-			if (document.querySelector(".hide-ui-button")) return;
-			const buttonContainer = fullscreenButton.parentElement;
-			const hideUIButton = document.createElement("button");
-			hideUIButton.className = "hide-ui-button";
-			hideUIButton.setAttribute("aria-label", "Hide UI");
-			hideUIButton.setAttribute("title", "Hide UI");
-			hideUIButton.textContent = "Hide UI";
-			hideUIButton.style.backgroundColor = "#ffffff";
-			hideUIButton.style.color = "black";
-			hideUIButton.style.border = "none";
-			hideUIButton.style.borderRadius = "12px";
-			hideUIButton.style.height = "40px";
-			hideUIButton.style.padding = "0 12px";
-			hideUIButton.style.marginLeft = "8px";
-			hideUIButton.style.cursor = "pointer";
-			hideUIButton.style.display = "flex";
-			hideUIButton.style.alignItems = "center";
-			hideUIButton.style.justifyContent = "center";
-			hideUIButton.style.fontSize = "12px";
-			hideUIButton.style.fontWeight = "600";
-			hideUIButton.style.whiteSpace = "nowrap";
-			hideUIButton.style.transition =
-				"opacity 0.5s ease-in-out, visibility 0.5s ease-in-out, background-color 0.2s ease-in-out";
-			hideUIButton.style.opacity = "0";
-			hideUIButton.style.visibility = "hidden";
-			hideUIButton.style.pointerEvents = "none";
-			hideUIButton.addEventListener("mouseenter", () => {
-				hideUIButton.style.backgroundColor = "#e5e5e5";
-			});
-			hideUIButton.addEventListener("mouseleave", () => {
-				hideUIButton.style.backgroundColor = "#ffffff";
-			});
-			hideUIButton.onclick = toggleRadiantLyrics;
-			buttonContainer.insertBefore(hideUIButton, fullscreenButton.nextSibling);
-			safeTimeout(
-				unloads,
-				() => {
-					if (settings.hideUIEnabled && !isHidden) {
-						hideUIButton.style.opacity = "1";
-						hideUIButton.style.visibility = "visible";
-						hideUIButton.style.pointerEvents = "auto";
-					}
-				},
-				100,
+			if (document.querySelector(".resync-lyrics-button")) return;
+			const buttonContainer = closeButton.parentElement;
+
+			const resyncButton = closeButton.cloneNode(false) as HTMLButtonElement;
+			resyncButton.className = closeButton.className;
+			resyncButton.classList.add("resync-lyrics-button");
+			resyncButton.removeAttribute("data-test");
+			resyncButton.setAttribute("type", "button");
+			resyncButton.setAttribute("aria-label", "Resync Lyrics");
+			resyncButton.setAttribute("title", "Resync Lyrics");
+			resyncButton.disabled = true;
+			resyncButton.style.opacity = "0.3";
+			resyncButton.style.cursor = "not-allowed";
+
+			const iconSpan = closeButton.querySelector("span");
+			const iconSvg = closeButton.querySelector("svg");
+			const spanWrapper = document.createElement("span");
+			if (iconSpan) spanWrapper.className = iconSpan.className;
+			spanWrapper.setAttribute("aria-hidden", "true");
+			const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+			svgEl.setAttribute("viewBox", "0 0 20 20");
+			if (iconSvg) svgEl.setAttribute("class", iconSvg.className.baseVal);
+			const useEl = document.createElementNS("http://www.w3.org/2000/svg", "use");
+			useEl.setAttribute("href", "#general__lyrics-sync");
+			svgEl.appendChild(useEl);
+			spanWrapper.appendChild(svgEl);
+			resyncButton.appendChild(spanWrapper);
+
+			resyncButton.onclick = () => resyncLyrics();
+
+			const hideBtn = buttonContainer.querySelector(".hide-ui-button");
+			buttonContainer.insertBefore(
+				resyncButton,
+				hideBtn ?? closeButton,
 			);
 		},
 		1000,
 	);
 };
 
-const createUnhideUIButton = function (): void {
+const createHideUIButton = function (): void {
 	safeTimeout(
 		unloads,
 		() => {
 			if (!settings.hideUIEnabled) return;
-			if (document.querySelector(".unhide-ui-button")) return;
-			const nowPlayingContainer = document.querySelector(
-				'[class*="_nowPlayingContainer"]',
-			) as HTMLElement;
-			if (!nowPlayingContainer) {
-				safeTimeout(unloads, () => createUnhideUIButton(), 1000);
+			const closeButton = document.querySelector(
+				'[data-test="new-now-playing-close"]',
+			) as HTMLButtonElement;
+			if (!closeButton || !closeButton.parentElement) {
+				safeTimeout(unloads, () => createHideUIButton(), 1000);
 				return;
 			}
-			const unhideUIButton = document.createElement("button");
-			unhideUIButton.className = "unhide-ui-button";
-			unhideUIButton.setAttribute("aria-label", "Unhide UI");
-			unhideUIButton.setAttribute("title", "Unhide UI");
-			unhideUIButton.textContent = "Unhide";
-			unhideUIButton.style.cssText = `position: absolute; top: 10px; right: 10px; background-color: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 12px; height: 40px; padding: 0 12px; cursor: pointer; display: none; align-items: center; justify-content: center; transition: all 0.5s ease-in-out; font-size: 12px; font-weight: 600; white-space: nowrap; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); opacity: 0; visibility: hidden; pointer-events: none;`;
-			unhideUIButton.addEventListener("mouseenter", () => {
-				unhideUIButton.style.backgroundColor = "rgba(255,255,255,0.3)";
-				unhideUIButton.style.transform = "scale(1.05)";
-				unhideUIButton.classList.remove("auto-faded");
-			});
-			unhideUIButton.addEventListener("mouseleave", () => {
-				unhideUIButton.style.backgroundColor = "rgba(255,255,255,0.2)";
-				unhideUIButton.style.transform = "scale(1)";
-				safeTimeout(
-					unloads,
-					() => {
-						if (isHidden && !unhideUIButton.matches(":hover")) {
-							unhideUIButton.classList.add("auto-faded");
-						}
-					},
-					2000,
-				);
-			});
-			unhideUIButton.onclick = toggleRadiantLyrics;
-			nowPlayingContainer.appendChild(unhideUIButton);
-			updateButtonStates();
+			if (document.querySelector(".hide-ui-button")) return;
+			const buttonContainer = closeButton.parentElement;
+
+			const hideUIButton = closeButton.cloneNode(false) as HTMLButtonElement;
+			hideUIButton.className = closeButton.className;
+			hideUIButton.classList.add("hide-ui-button");
+			hideUIButton.removeAttribute("data-test");
+			hideUIButton.setAttribute("type", "button");
+			hideUIButton.setAttribute("aria-label", isHidden ? "Show UI" : "Hide UI");
+			hideUIButton.setAttribute("title", isHidden ? "Show UI" : "Hide UI");
+
+			const iconSpan = closeButton.querySelector("span");
+			const iconSvg = closeButton.querySelector("svg");
+			const spanWrapper = document.createElement("span");
+			if (iconSpan) spanWrapper.className = iconSpan.className;
+			spanWrapper.setAttribute("aria-hidden", "true");
+			const svgContent = isHidden ? EYE_ON_SVG : EYE_OFF_SVG;
+			spanWrapper.innerHTML = svgContent;
+			const svg = spanWrapper.querySelector("svg");
+			if (svg && iconSvg) svg.setAttribute("class", iconSvg.className.baseVal);
+			hideUIButton.appendChild(spanWrapper);
+
+			hideUIButton.onclick = toggleRadiantLyrics;
+			buttonContainer.insertBefore(hideUIButton, closeButton);
 		},
-		1500,
+		1000,
 	);
 };
 
@@ -1007,21 +1017,10 @@ unloads.add(() => {
 		footerPlayer.style.removeProperty("width");
 	}
 
-	// Clean up HideUI button auto-fade timeout
-	if (unhideButtonAutoFadeTimeout != null) {
-		window.clearTimeout(unhideButtonAutoFadeTimeout);
-		unhideButtonAutoFadeTimeout = null;
-	}
-
-	// Clean up HideUI button
-	const hideButton = document.querySelector(".hide-ui-button");
-	if (hideButton && hideButton.parentNode) {
-		hideButton.parentNode.removeChild(hideButton);
-	}
-
-	const unhideButton = document.querySelector(".unhide-ui-button");
-	if (unhideButton && unhideButton.parentNode) {
-		unhideButton.parentNode.removeChild(unhideButton);
+	// Clean up action buttons
+	for (const sel of [".hide-ui-button", ".resync-lyrics-button"]) {
+		const btn = document.querySelector(sel);
+		if (btn?.parentNode) btn.parentNode.removeChild(btn);
 	}
 
 	// Clean up sticky lyrics elements
@@ -3922,6 +3921,7 @@ const startTickLoop = (): void => {
 // Called by track change or style toggle
 const onTrackChange = async (): Promise<void> => {
 	teardown();
+	lockResync();
 
 	const runId = ++trackChangeRunSeq;
 	isTrackChangeRunning = true;
@@ -3947,6 +3947,7 @@ const onTrackChange = async (): Promise<void> => {
 		if (token !== trackChangeToken) return;
 		if (!response) {
 			trace.log("RL API: no API lyrics available, falling back to TIDAL lines");
+			disableResyncNoLyrics();
 			const tidalTexts = getTidalLines();
 			const romanized = settings.romanizeLyrics
 				? await romanizeLines(tidalTexts)
@@ -3992,6 +3993,7 @@ const onTrackChange = async (): Promise<void> => {
 			`[RL-Syllable] Loaded "${trackInfo.title}" by "${trackInfo.artist}" — ${response.data.length} lines`,
 		);
 
+		unlockResync();
 		lyricsMode = response.type === "Word" ? "word" : "line-api";
 		if (token !== trackChangeToken) return;
 		lyricsData =
@@ -4166,19 +4168,13 @@ const setupTrackChangeListener = (): void => {
 
 function setupHeaderObserver(): void {
 	const existing = document.querySelector('[data-test="header"]');
-	if (existing && !document.querySelector(".hide-ui-button"))
-		createHideUIButton();
-	observe<HTMLElement>(unloads, '[data-test="header"]', () => {
+	if (existing) {
+		if (!document.querySelector(".resync-lyrics-button")) createResyncButton();
 		if (!document.querySelector(".hide-ui-button")) createHideUIButton();
-	});
-}
-
-function setupNowPlayingObserver(): void {
-	const existing = document.querySelector('[class*="_nowPlayingContainer"]');
-	if (existing && !document.querySelector(".unhide-ui-button"))
-		createUnhideUIButton();
-	observe<HTMLElement>(unloads, '[class*="_nowPlayingContainer"]', () => {
-		if (!document.querySelector(".unhide-ui-button")) createUnhideUIButton();
+	}
+	observe<HTMLElement>(unloads, '[data-test="header"]', () => {
+		if (!document.querySelector(".resync-lyrics-button")) createResyncButton();
+		if (!document.querySelector(".hide-ui-button")) createHideUIButton();
 	});
 }
 
@@ -4190,6 +4186,5 @@ onGlobalTrackChange(() => {
 
 // Init observers
 setupHeaderObserver();
-setupNowPlayingObserver();
 setupStickyLyricsObserver();
 setupTrackChangeListener();

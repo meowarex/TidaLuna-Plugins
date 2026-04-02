@@ -23,60 +23,27 @@
 .radiant-lyrics-ui-hidden [data-test="toggle-credits"],
 .radiant-lyrics-ui-hidden [data-test="toggle-similar-tracks"] {
 	opacity: 0 !important;
-	transition: opacity 0.4s ease-in-out;
+	transition: opacity 0.4s ease-in-out !important;
 }
 
 .radiant-lyrics-ui-hidden [data-test="toggle-lyrics"]:hover,
 .radiant-lyrics-ui-hidden [data-test="toggle-credits"]:hover,
-.radiant-lyrics-ui-hidden [data-test="toggle-similar-tracks"]:hover {
+.radiant-lyrics-ui-hidden [data-test="toggle-similar-tracks"]:hover,
+.radiant-lyrics-ui-hidden.rl-dropdown-open [data-test="toggle-lyrics"] {
 	opacity: 1 !important;
+	transition: opacity 0.4s ease-in-out !important;
 }
 
-/* Hide header container (search, minimize, fullscreen) when UI is hidden */
-.radiant-lyrics-ui-hidden [data-test="header"] {
+/* Hide header, artist info, and visualizer when UI is hidden */
+.radiant-lyrics-ui-hidden [data-test="header"],
+.radiant-lyrics-ui-hidden [data-test="artist-info"],
+.radiant-lyrics-ui-hidden .audio-visualizer-container {
 	opacity: 0 !important;
 	visibility: hidden !important;
-	transition: opacity 0.4s ease-in-out, visibility 0s linear 0.4s;
+	transition: opacity 0.4s ease-in-out !important, visibility 0s linear 0.4s;
 	pointer-events: none !important;
 }
 
-/* Immediate hide class for unhide button */
-.hide-immediately {
-	opacity: 0 !important;
-	visibility: hidden !important;
-	pointer-events: none !important;
-}
-
-/* Auto-fade styling for unhide button */
-.unhide-ui-button.auto-faded {
-	background-color: transparent !important;
-	border-color: transparent !important;
-	box-shadow: none !important;
-	backdrop-filter: none !important;
-	-webkit-backdrop-filter: none !important;
-	color: rgba(255, 255, 255, 0.4) !important;
-	transition:
-		background-color 0.8s ease-in-out,
-		border-color 0.8s ease-in-out,
-		box-shadow 0.8s ease-in-out,
-		backdrop-filter 0.8s ease-in-out,
-		color 0.8s ease-in-out !important;
-}
-
-.unhide-ui-button.auto-faded:hover {
-	background-color: rgba(255, 255, 255, 0.2) !important;
-	border-color: rgba(255, 255, 255, 0.3) !important;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
-	backdrop-filter: blur(10px) !important;
-	-webkit-backdrop-filter: blur(10px) !important;
-	color: white !important;
-	transition:
-		background-color 0.3s ease-in-out,
-		border-color 0.3s ease-in-out,
-		box-shadow 0.3s ease-in-out,
-		backdrop-filter 0.3s ease-in-out,
-		color 0.3s ease-in-out !important;
-}
 
 
 /* MARKER: Sticky Lyrics CSS */
@@ -294,4 +261,9 @@ body.rl-dropdown-open [data-test="toggle-lyrics"] {
 
 ._artworkTilt_1c6d5cc {
     border: none !important;
+}
+
+/* Hide fullscreen button — breaks Radiant Lyrics */
+[data-test="new-now-playing-expand"] {
+	display: none !important;
 }
