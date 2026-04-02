@@ -291,3 +291,7 @@ body.rl-dropdown-open [data-test="toggle-lyrics"] {
 	display: none !important;
 	pointer-events: none !important;
 }
+
+._artworkTilt_1c6d5cc {
+    border: none !important;
+}
