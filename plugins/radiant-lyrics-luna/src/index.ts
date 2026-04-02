@@ -1515,6 +1515,8 @@ let tickLoopUnload: LunaUnload | null = null;
 let isActive = false;
 let savedTidalClasses: string[] | null = null;
 let tidalFollowObserver: MutationObserver | null = null;
+let tidalFollowLunaUnload: (() => void) | null = null;
+let tidalFollowRebuildPending = false;
 let nativeLyricsOverlayInstalled = false;
 let originalReduxGetState: (() => ReturnType<typeof redux.store.getState>) | null =
 	null;
@@ -1938,6 +1940,7 @@ let scrollSynced = true;
 let userScrollListener: (() => void) | null = null;
 let syncButtonListener: (() => void) | null = null;
 let syncButtonEl: HTMLElement | null = null;
+let syncButtonObserverUnload: (() => void) | null = null;
 
 // scroll bounce animation state
 let scrollAnimIsAnimating = false;
@@ -2962,6 +2965,10 @@ const buildTidalLines = (
 		});
 
 		lineDiv.appendChild(lineSpan);
+		lineDiv.addEventListener("click", () => {
+			tidalSpan.click();
+			resync();
+		});
 		wbwContainer.appendChild(lineDiv);
 		lines.push({
 			el: lineDiv,
@@ -2979,6 +2986,11 @@ const buildTidalLines = (
 };
 
 const stopTidalFollowLoop = (): void => {
+	tidalFollowRebuildPending = false;
+	if (tidalFollowLunaUnload) {
+		tidalFollowLunaUnload();
+		tidalFollowLunaUnload = null;
+	}
 	if (tidalFollowObserver) {
 		tidalFollowObserver.disconnect();
 		tidalFollowObserver = null;
@@ -3213,6 +3225,11 @@ const updateTidalFollowActiveLine = (): void => {
 
 	applyInactiveBlurState(activeIndex);
 
+	// Retry hooking the sync button when desynced (no tick loop in line-tidal)
+	if (!scrollSynced && !syncButtonEl) {
+		hookSyncButton();
+	}
+
 	if (activeIndex !== prevPrimary) {
 		const newLine = lines[activeIndex];
 		const scrollParent = findScroller(newLine.el);
@@ -3244,8 +3261,12 @@ const updateTidalFollowActiveLine = (): void => {
 	}
 };
 
-const startTidalFollowLoop = (): void => {
-	stopTidalFollowLoop();
+const rebuildTidalSpanAttrObservers = (): void => {
+	if (tidalFollowObserver) {
+		tidalFollowObserver.disconnect();
+		tidalFollowObserver = null;
+	}
+
 	const lyricsContainer = findLyricsContainer();
 	if (!lyricsContainer) return;
 
@@ -3257,6 +3278,7 @@ const startTidalFollowLoop = (): void => {
 	tidalFollowObserver = new MutationObserver(() => {
 		updateTidalFollowActiveLine();
 	});
+
 	for (const span of tidalSpans) {
 		tidalFollowObserver.observe(span, {
 			attributes: true,
@@ -3265,6 +3287,25 @@ const startTidalFollowLoop = (): void => {
 	}
 
 	updateTidalFollowActiveLine();
+};
+
+const startTidalFollowLoop = (): void => {
+	stopTidalFollowLoop();
+
+	rebuildTidalSpanAttrObservers();
+
+	tidalFollowLunaUnload = observe<HTMLElement>(
+		unloads,
+		'span[data-test="lyrics-line"]',
+		() => {
+			if (tidalFollowRebuildPending) return;
+			tidalFollowRebuildPending = true;
+			setTimeout(() => {
+				tidalFollowRebuildPending = false;
+				rebuildTidalSpanAttrObservers();
+			}, 0);
+		},
+	);
 };
 
 // watch for re-renders
@@ -3512,19 +3553,37 @@ const unhookUserScroll = (): void => {
 };
 
 // Hook lyric scroll sync button
-const hookSyncButton = (): void => {
-	unhookSyncButton();
-	const btn = document.querySelector(
-		'div[class*="_syncButton"] button',
-	) as HTMLElement;
-	if (!btn) return;
+const SYNC_BTN_SELECTOR = 'div[class*="_syncButton"] button';
+
+const attachSyncButtonHandler = (btn: HTMLElement): void => {
 	syncButtonEl = btn;
 	const handler = () => resync(false);
 	btn.addEventListener("click", handler);
 	syncButtonListener = () => btn.removeEventListener("click", handler);
 };
 
+const hookSyncButton = (): void => {
+	unhookSyncButton();
+	const btn = document.querySelector(SYNC_BTN_SELECTOR) as HTMLElement;
+	if (btn) {
+		attachSyncButtonHandler(btn);
+		return;
+	}
+	syncButtonObserverUnload = observe<HTMLElement>(
+		unloads,
+		SYNC_BTN_SELECTOR,
+		(el) => {
+			if (syncButtonEl) return;
+			attachSyncButtonHandler(el);
+		},
+	);
+};
+
 const unhookSyncButton = (): void => {
+	if (syncButtonObserverUnload) {
+		syncButtonObserverUnload();
+		syncButtonObserverUnload = null;
+	}
 	if (syncButtonListener) {
 		syncButtonListener();
 		syncButtonListener = null;
