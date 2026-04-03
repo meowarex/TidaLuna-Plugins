@@ -207,6 +207,7 @@
 	color: rgba(255, 255, 255, 0.4);
 	/* biome-ignore lint: Must beat Tidal _hasCues_ opacity */
 	opacity: 1 !important;
+	line-height: 1.15;
 	transition:
 		text-shadow 0.15s ease-out,
 		color 0.15s ease-out;
