@@ -411,7 +411,7 @@ export const Settings = () => {
 			{playerBarBlur && (
 				<LunaNumberSetting
 					title="Player Bar Blur Amount"
-					desc="Adjust the backdrop blur intensity (0-100, default: 26)"
+					desc="Adjust the backdrop blur intensity (0-100, default: 15)"
 					min={0}
 					max={100}
 					step={1}

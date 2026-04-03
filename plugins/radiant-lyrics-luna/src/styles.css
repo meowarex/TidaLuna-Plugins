@@ -324,7 +324,7 @@ body.rl-integrated-seekbar .rl-seekbar-bar:hover [data-test="progress-bar"] [dat
 
 
 /* MARKER: PATCHES (Random Fixes for Tidals Changes) */
-/* These change allot so i gave them their own section */
+/* These change a lot so I gave them their own section */
 
 /* Remove max-width cap on now-playing content */
 [class*="_contentInner"] {
