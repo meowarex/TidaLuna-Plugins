@@ -319,30 +319,30 @@ const toggleRadiantLyrics = function (): void {
 };
 
 // Create buttons
-let resyncLocked = false;
-const unlockResync = (): void => {
-	resyncLocked = false;
-	const btn = document.querySelector(".resync-lyrics-button") as HTMLButtonElement;
+let flushLocked = false;
+const unlockFlush = (): void => {
+	flushLocked = false;
+	const btn = document.querySelector(".flush-lyrics-button") as HTMLButtonElement;
 	if (btn) {
 		btn.disabled = false;
 		btn.style.opacity = "";
 		btn.style.cursor = "";
-		btn.setAttribute("title", "Resync Lyrics");
-		btn.setAttribute("aria-label", "Resync Lyrics");
+		btn.setAttribute("title", "Flush Lyrics");
+		btn.setAttribute("aria-label", "Flush Lyrics");
 	}
 };
-const lockResync = (): void => {
-	resyncLocked = true;
-	const btn = document.querySelector(".resync-lyrics-button") as HTMLButtonElement;
+const lockFlush = (): void => {
+	flushLocked = true;
+	const btn = document.querySelector(".flush-lyrics-button") as HTMLButtonElement;
 	if (btn) {
 		btn.disabled = true;
 		btn.style.opacity = "0.3";
 		btn.style.cursor = "not-allowed";
 	}
 };
-const disableResyncNoLyrics = (): void => {
-	resyncLocked = true;
-	const btn = document.querySelector(".resync-lyrics-button") as HTMLButtonElement;
+const disableFlushNoLyrics = (): void => {
+	flushLocked = true;
+	const btn = document.querySelector(".flush-lyrics-button") as HTMLButtonElement;
 	if (btn) {
 		btn.disabled = true;
 		btn.style.opacity = "0.3";
@@ -352,16 +352,16 @@ const disableResyncNoLyrics = (): void => {
 	}
 };
 
-const resyncLyrics = async (): Promise<void> => {
-	if (resyncLocked) return;
+const flushLyrics = async (): Promise<void> => {
+	if (flushLocked) return;
 
 	const trackInfo = await getTrackInfo();
 	if (!trackInfo) {
-		trace.msg.err("Resync: could not get track info");
+		trace.msg.err("Flush: could not get track info");
 		return;
 	}
 
-	lockResync();
+	lockFlush();
 
 	let params = `?title=${encodeURIComponent(trackInfo.title)}&artist=${encodeURIComponent(trackInfo.artist)}`;
 	if (trackInfo.isrc) params += `&isrc=${encodeURIComponent(trackInfo.isrc)}`;
@@ -370,18 +370,18 @@ const resyncLyrics = async (): Promise<void> => {
 	const url = `https://api.atomix.one/rl-api${params}`;
 	try {
 		const clientIP = await getPublicIPv4();
-		const resyncHeaders: Record<string, string> = {
+		const flushHeaders: Record<string, string> = {
 			"P-Access-Token-Id": "58hy4s86",
 			"P-Access-Token": "xjehy2lfg5h5mjwotoxrcqugam",
 		};
-		resyncHeaders["x-client-ip"] = clientIP ?? "null";
-		const res = await fetch(url, { headers: resyncHeaders });
+		flushHeaders["x-client-ip"] = clientIP ?? "null";
+		const res = await fetch(url, { headers: flushHeaders });
 		if (res.status === 404) {
 			toast("No lyrics found for this track");
 			return;
 		}
 		if (!res.ok) {
-			toastErr(`Resync failed (${res.status})`);
+			toastErr(`Flush failed (${res.status})`);
 			return;
 		}
 		const data = (await res.json()) as LyricsApiResponse & { _flush?: string };
@@ -391,7 +391,7 @@ const resyncLyrics = async (): Promise<void> => {
 		if (flush) {
 			toast(flush);
 		} else {
-			toast("Lyrics resynced");
+			toast("Lyrics flushed");
 		}
 		if (needsReload || !flush) {
 			cachedLyricsKey = null;
@@ -399,100 +399,82 @@ const resyncLyrics = async (): Promise<void> => {
 			onTrackChange();
 		}
 	} catch (err) {
-		toastErr(`Resync error: ${err instanceof Error ? err.message : String(err)}`);
+		toastErr(`Flush error: ${err instanceof Error ? err.message : String(err)}`);
 	}
 };
 
-const createResyncButton = function (): void {
-	safeTimeout(
-		unloads,
-		() => {
-			const closeButton = document.querySelector(
-				'[data-test="new-now-playing-close"]',
-			) as HTMLButtonElement;
-			if (!closeButton || !closeButton.parentElement) {
-				safeTimeout(unloads, () => createResyncButton(), 1000);
-				return;
-			}
-			if (document.querySelector(".resync-lyrics-button")) return;
-			const buttonContainer = closeButton.parentElement;
+const createFlushButton = function (): void {
+	const closeButton = document.querySelector(
+		'[data-test="new-now-playing-close"]',
+	) as HTMLButtonElement;
+	if (!closeButton?.parentElement) return;
+	if (document.querySelector(".flush-lyrics-button")) return;
+	const buttonContainer = closeButton.parentElement;
 
-			const resyncButton = closeButton.cloneNode(false) as HTMLButtonElement;
-			resyncButton.className = closeButton.className;
-			resyncButton.classList.add("resync-lyrics-button");
-			resyncButton.removeAttribute("data-test");
-			resyncButton.setAttribute("type", "button");
-			resyncButton.setAttribute("aria-label", "Resync Lyrics");
-			resyncButton.setAttribute("title", "Resync Lyrics");
-			resyncButton.disabled = true;
-			resyncButton.style.opacity = "0.3";
-			resyncButton.style.cursor = "not-allowed";
+	const flushButton = closeButton.cloneNode(false) as HTMLButtonElement;
+	flushButton.className = closeButton.className;
+	flushButton.classList.add("flush-lyrics-button");
+	flushButton.removeAttribute("data-test");
+	flushButton.setAttribute("type", "button");
+	flushButton.setAttribute("aria-label", "Flush Lyrics");
+	flushButton.setAttribute("title", "Flush Lyrics");
+	flushButton.disabled = true;
+	flushButton.style.opacity = "0.3";
+	flushButton.style.cursor = "not-allowed";
 
-			const iconSpan = closeButton.querySelector("span");
-			const iconSvg = closeButton.querySelector("svg");
-			const spanWrapper = document.createElement("span");
-			if (iconSpan) spanWrapper.className = iconSpan.className;
-			spanWrapper.setAttribute("aria-hidden", "true");
-			const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-			svgEl.setAttribute("viewBox", "0 0 20 20");
-			if (iconSvg) svgEl.setAttribute("class", iconSvg.className.baseVal);
-			const useEl = document.createElementNS("http://www.w3.org/2000/svg", "use");
-			useEl.setAttribute("href", "#general__lyrics-sync");
-			svgEl.appendChild(useEl);
-			spanWrapper.appendChild(svgEl);
-			resyncButton.appendChild(spanWrapper);
+	const iconSpan = closeButton.querySelector("span");
+	const iconSvg = closeButton.querySelector("svg");
+	const spanWrapper = document.createElement("span");
+	if (iconSpan) spanWrapper.className = iconSpan.className;
+	spanWrapper.setAttribute("aria-hidden", "true");
+	const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+	svgEl.setAttribute("viewBox", "0 0 20 20");
+	if (iconSvg) svgEl.setAttribute("class", iconSvg.className.baseVal);
+	const useEl = document.createElementNS("http://www.w3.org/2000/svg", "use");
+	useEl.setAttribute("href", "#general__lyrics-sync");
+	svgEl.appendChild(useEl);
+	spanWrapper.appendChild(svgEl);
+	flushButton.appendChild(spanWrapper);
 
-			resyncButton.onclick = () => resyncLyrics();
+	flushButton.onclick = () => flushLyrics();
 
-			const hideBtn = buttonContainer.querySelector(".hide-ui-button");
-			buttonContainer.insertBefore(
-				resyncButton,
-				hideBtn ?? closeButton,
-			);
-		},
-		1000,
+	const hideBtn = buttonContainer.querySelector(".hide-ui-button");
+	buttonContainer.insertBefore(
+		flushButton,
+		hideBtn ?? closeButton,
 	);
 };
 
 const createHideUIButton = function (): void {
-	safeTimeout(
-		unloads,
-		() => {
-			if (!settings.hideUIEnabled) return;
-			const closeButton = document.querySelector(
-				'[data-test="new-now-playing-close"]',
-			) as HTMLButtonElement;
-			if (!closeButton || !closeButton.parentElement) {
-				safeTimeout(unloads, () => createHideUIButton(), 1000);
-				return;
-			}
-			if (document.querySelector(".hide-ui-button")) return;
-			const buttonContainer = closeButton.parentElement;
+	if (!settings.hideUIEnabled) return;
+	const closeButton = document.querySelector(
+		'[data-test="new-now-playing-close"]',
+	) as HTMLButtonElement;
+	if (!closeButton?.parentElement) return;
+	if (document.querySelector(".hide-ui-button")) return;
+	const buttonContainer = closeButton.parentElement;
 
-			const hideUIButton = closeButton.cloneNode(false) as HTMLButtonElement;
-			hideUIButton.className = closeButton.className;
-			hideUIButton.classList.add("hide-ui-button");
-			hideUIButton.removeAttribute("data-test");
-			hideUIButton.setAttribute("type", "button");
-			hideUIButton.setAttribute("aria-label", isHidden ? "Show UI" : "Hide UI");
-			hideUIButton.setAttribute("title", isHidden ? "Show UI" : "Hide UI");
+	const hideUIButton = closeButton.cloneNode(false) as HTMLButtonElement;
+	hideUIButton.className = closeButton.className;
+	hideUIButton.classList.add("hide-ui-button");
+	hideUIButton.removeAttribute("data-test");
+	hideUIButton.setAttribute("type", "button");
+	hideUIButton.setAttribute("aria-label", isHidden ? "Show UI" : "Hide UI");
+	hideUIButton.setAttribute("title", isHidden ? "Show UI" : "Hide UI");
 
-			const iconSpan = closeButton.querySelector("span");
-			const iconSvg = closeButton.querySelector("svg");
-			const spanWrapper = document.createElement("span");
-			if (iconSpan) spanWrapper.className = iconSpan.className;
-			spanWrapper.setAttribute("aria-hidden", "true");
-			const svgContent = isHidden ? EYE_ON_SVG : EYE_OFF_SVG;
-			spanWrapper.innerHTML = svgContent;
-			const svg = spanWrapper.querySelector("svg");
-			if (svg && iconSvg) svg.setAttribute("class", iconSvg.className.baseVal);
-			hideUIButton.appendChild(spanWrapper);
+	const iconSpan = closeButton.querySelector("span");
+	const iconSvg = closeButton.querySelector("svg");
+	const spanWrapper = document.createElement("span");
+	if (iconSpan) spanWrapper.className = iconSpan.className;
+	spanWrapper.setAttribute("aria-hidden", "true");
+	const svgContent = isHidden ? EYE_ON_SVG : EYE_OFF_SVG;
+	spanWrapper.innerHTML = svgContent;
+	const svg = spanWrapper.querySelector("svg");
+	if (svg && iconSvg) svg.setAttribute("class", iconSvg.className.baseVal);
+	hideUIButton.appendChild(spanWrapper);
 
-			hideUIButton.onclick = toggleRadiantLyrics;
-			buttonContainer.insertBefore(hideUIButton, closeButton);
-		},
-		1000,
-	);
+	hideUIButton.onclick = toggleRadiantLyrics;
+	buttonContainer.insertBefore(hideUIButton, closeButton);
 };
 
 // MARKER: Background Rendering
@@ -1024,7 +1006,7 @@ unloads.add(() => {
 	}
 
 	// Clean up action buttons
-	for (const sel of [".hide-ui-button", ".resync-lyrics-button"]) {
+	for (const sel of [".hide-ui-button", ".flush-lyrics-button"]) {
 		const btn = document.querySelector(sel);
 		if (btn?.parentNode) btn.parentNode.removeChild(btn);
 	}
@@ -3931,7 +3913,7 @@ const startTickLoop = (): void => {
 // Called by track change or style toggle
 const onTrackChange = async (): Promise<void> => {
 	teardown();
-	lockResync();
+	lockFlush();
 
 	const runId = ++trackChangeRunSeq;
 	isTrackChangeRunning = true;
@@ -3957,7 +3939,7 @@ const onTrackChange = async (): Promise<void> => {
 		if (token !== trackChangeToken) return;
 		if (!response) {
 			trace.log("RL API: no API lyrics available, falling back to TIDAL lines");
-			disableResyncNoLyrics();
+			disableFlushNoLyrics();
 			const tidalTexts = getTidalLines();
 			const romanized = settings.romanizeLyrics
 				? await romanizeLines(tidalTexts)
@@ -4003,7 +3985,7 @@ const onTrackChange = async (): Promise<void> => {
 			`[RL-Syllable] Loaded "${trackInfo.title}" by "${trackInfo.artist}" — ${response.data.length} lines`,
 		);
 
-		unlockResync();
+		unlockFlush();
 		lyricsMode = response.type === "Word" ? "word" : "line-api";
 		if (token !== trackChangeToken) return;
 		lyricsData =
@@ -4197,15 +4179,15 @@ const setupTrackChangeListener = (): void => {
 };
 
 function setupHeaderObserver(): void {
-	const existing = document.querySelector('[data-test="header"]');
-	if (existing) {
-		if (!document.querySelector(".resync-lyrics-button")) createResyncButton();
+	const injectButtons = () => {
+		if (!document.querySelector(".flush-lyrics-button")) createFlushButton();
 		if (!document.querySelector(".hide-ui-button")) createHideUIButton();
+	};
+
+	if (document.querySelector('[data-test="new-now-playing-close"]')) {
+		injectButtons();
 	}
-	observe<HTMLElement>(unloads, '[data-test="header"]', () => {
-		if (!document.querySelector(".resync-lyrics-button")) createResyncButton();
-		if (!document.querySelector(".hide-ui-button")) createHideUIButton();
-	});
+	observe<HTMLElement>(unloads, '[data-test="new-now-playing-close"]', injectButtons);
 }
 
 // Apply seeker color on track change
