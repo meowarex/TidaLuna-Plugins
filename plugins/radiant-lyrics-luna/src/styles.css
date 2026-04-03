@@ -239,6 +239,90 @@ body.rl-dropdown-open [data-test="toggle-lyrics"] {
 }
 
 
+/* MARKER: Integrated Seek Bar */
+/* Moves the seekbar to the top border of the player bar (inspired by Amethyst) */
+
+/* Scrubber row stays in flow — centers the time block as one unit */
+body.rl-integrated-seekbar .rl-seekbar-container {
+	justify-content: center !important;
+	align-items: center !important;
+	gap: 0 !important;
+}
+
+/* Single string: "current | duration" — synced from native <time> nodes */
+body.rl-integrated-seekbar .rl-seekbar-combined-time {
+	opacity: 0.5 !important;
+	white-space: nowrap !important;
+	line-height: 1.2 !important;
+	flex: 0 0 auto !important;
+	font-variant-numeric: tabular-nums !important;
+}
+
+/* Hide Tidal's two time <p> cells (class + structural — survives React re-renders) */
+body.rl-integrated-seekbar .rl-seekbar-native-time {
+	display: none !important;
+}
+
+body.rl-integrated-seekbar [data-test="footer-player"] .rl-seekbar-container > p:has([data-test="current-time"]),
+body.rl-integrated-seekbar [data-test="footer-player"] .rl-seekbar-container > p:has([data-test="duration"]) {
+	display: none !important;
+}
+
+/* Scrubber bar — top strip: same width as footer player, top corners = Floating Bar Corner Radius */
+body.rl-integrated-seekbar .rl-seekbar-bar {
+	position: absolute !important;
+	top: 0 !important;
+	left: 0 !important;
+	right: 0 !important;
+	z-index: 100 !important;
+	box-sizing: border-box !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	flex: none !important;
+	border-top-left-radius: var(--rl-integrated-seekbar-top-radius, 0px) !important;
+	border-top-right-radius: var(--rl-integrated-seekbar-top-radius, 0px) !important;
+	border-bottom-left-radius: 0 !important;
+	border-bottom-right-radius: 0 !important;
+}
+
+/* Knob — pill shape, hidden until hover */
+body.rl-integrated-seekbar .rl-seekbar-bar [class*="knob"] {
+	width: 7px !important;
+	height: 14px !important;
+	border-radius: 3px !important;
+	background: #fff !important;
+	opacity: 0 !important;
+	transition: opacity 0.15s ease !important;
+}
+
+body.rl-integrated-seekbar .rl-seekbar-bar:hover [class*="knob"] {
+	opacity: 1 !important;
+}
+
+/* Track elements only: top corners follow player bar radius, bottom square */
+body.rl-integrated-seekbar .rl-seekbar-bar [data-test="progress-bar"],
+body.rl-integrated-seekbar .rl-seekbar-bar [data-test="progress-bar"] [class*="_wrapper"],
+body.rl-integrated-seekbar .rl-seekbar-bar [data-test="progress-bar"] [class*="_range"],
+body.rl-integrated-seekbar .rl-seekbar-bar [data-test="progress-bar"] [data-test="progress-indicator"] {
+	height: 3px !important;
+	border-top-left-radius: var(--rl-integrated-seekbar-top-radius, 0px) !important;
+	border-top-right-radius: var(--rl-integrated-seekbar-top-radius, 0px) !important;
+	border-bottom-left-radius: 0 !important;
+	border-bottom-right-radius: 0 !important;
+	transition: height 0.15s ease !important;
+}
+
+/* Expand on hover */
+body.rl-integrated-seekbar .rl-seekbar-bar:hover [data-test="progress-bar"],
+body.rl-integrated-seekbar .rl-seekbar-bar:hover [data-test="progress-bar"] [class*="_wrapper"],
+body.rl-integrated-seekbar .rl-seekbar-bar:hover [data-test="progress-bar"] [class*="_range"],
+body.rl-integrated-seekbar .rl-seekbar-bar:hover [data-test="progress-bar"] [data-test="progress-indicator"] {
+	height: 5px !important;
+}
+
+
 /* MARKER: PATCHES (Random Fixes for Tidals Changes) */
 /* These change allot so i gave them their own section */
 
@@ -265,5 +349,71 @@ body.rl-dropdown-open [data-test="toggle-lyrics"] {
 
 /* Hide fullscreen button — breaks Radiant Lyrics */
 [data-test="new-now-playing-expand"] {
+	display: none !important;
+}
+
+
+/* Restore the Old Quality Tag style | thx Aya <3 */
+
+._gradientMax_9111fba {
+	background-color: #ffd4321a !important;
+	box-shadow: none;
+	border-style: none;
+	border-radius: 0.75em;
+}
+
+._max_894bc7c ._badgeText_1c9dd30 {
+	color: #ffd432 !important;
+	text-shadow: 0 0 10px #0000 !important;
+	font-weight: 600 !important;
+	font-size: 90% !important;
+}
+
+._gradientHigh_87f2c3b {
+	background-color: #073430 !important;
+	box-shadow: none;
+	border-style: none;
+	border-radius: 0.75em;
+}
+
+._high_4b5525b ._badgeText_1c9dd30 {
+	color: #33ffee !important;
+	text-shadow: none !important;
+	font-weight: 600 !important;
+	font-size: 90% !important;
+}
+
+._gradientLow_3f9bc0d {
+	background-color: #ffffff1a !important;
+	box-shadow: none;
+	border-style: none;
+	border-radius: 0.75em;
+}
+
+._badgeText_1c9dd30 {
+	color: #e4e4e7 !important;
+	text-shadow: none;
+	font-weight: 600 !important;
+	font-size: 90% !important;
+}
+
+._badge_7b2911e {
+	border: none;
+	box-shadow: none;
+	background: none;
+	height: 33px;
+	padding: 0 !important;
+	width: 111px;
+	min-width: 111px;
+	border-radius: 0.75em;
+	transform: scale(1);
+}
+
+._badge_7b2911e:hover {
+	transition: 100ms;
+	filter: saturate(1.25) brightness(1.1);
+}
+
+._glowEffect_74c5e85 {
 	display: none !important;
 }

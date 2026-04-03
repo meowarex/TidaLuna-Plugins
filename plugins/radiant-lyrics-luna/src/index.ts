@@ -118,19 +118,58 @@ const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
 	};
 };
 
+/** CSS var for integrated seekbar top corners — matches Floating Bar Corner Radius when floating is on */
+const applyIntegratedSeekbarChrome = (): void => {
+	const footer = document.querySelector(
+		'[data-test="footer-player"]',
+	) as HTMLElement | null;
+	if (!footer) return;
+	if (!settings.integratedSeekBar) {
+		footer.style.removeProperty("--rl-integrated-seekbar-top-radius");
+		return;
+	}
+	const topR = settings.floatingPlayerBar ? settings.playerBarRadius : 0;
+	footer.style.setProperty("--rl-integrated-seekbar-top-radius", `${topR}px`);
+};
+
 // Apply inline styles to the player bar (tint + optional radius/spacing customisation)
 const applyPlayerBarTintToElement = (): void => {
 	const footerPlayer = document.querySelector(
 		'[data-test="footer-player"]',
 	) as HTMLElement;
 	if (!footerPlayer) return;
-	const alpha = settings.playerBarTint / 10;
-	const { r, g, b } = hexToRgb(settings.playerBarTintColor);
-	footerPlayer.style.setProperty(
-		"background-color",
-		`rgba(${r}, ${g}, ${b}, ${alpha})`,
-		"important",
-	);
+	if (settings.playerBarTintEnabled) {
+		const alpha = settings.playerBarTint / 10;
+		const { r, g, b } = hexToRgb(settings.playerBarTintColor);
+		footerPlayer.style.removeProperty("background");
+		footerPlayer.style.setProperty(
+			"background-color",
+			`rgba(${r}, ${g}, ${b}, ${alpha})`,
+			"important",
+		);
+	} else {
+		footerPlayer.style.removeProperty("background-color");
+		footerPlayer.style.setProperty(
+			"background",
+			"linear-gradient(rgba(60,60,60,0.35) 0%, rgba(60,60,60,0.35) 27%, rgba(61,61,61,0.35) 35%, rgba(62,62,62,0.35) 43.5%, rgba(63,63,63,0.35) 53%, rgba(65,65,65,0.35) 66%, rgba(67,67,67,0.35) 81%, rgba(70,70,70,0.35) 100%)",
+			"important",
+		);
+	}
+	if (settings.playerBarBlur) {
+		footerPlayer.style.setProperty(
+			"backdrop-filter",
+			`blur(${settings.playerBarBlurAmount}px)`,
+			"important",
+		);
+		footerPlayer.style.setProperty(
+			"-webkit-backdrop-filter",
+			`blur(${settings.playerBarBlurAmount}px)`,
+			"important",
+		);
+	} else {
+		footerPlayer.style.setProperty("backdrop-filter", "none", "important");
+		footerPlayer.style.setProperty("-webkit-backdrop-filter", "none", "important");
+	}
 	if (settings.floatingPlayerBar) {
 		footerPlayer.style.setProperty(
 			"border-radius",
@@ -151,6 +190,7 @@ const applyPlayerBarTintToElement = (): void => {
 		footerPlayer.style.removeProperty("left");
 		footerPlayer.style.removeProperty("width");
 	}
+	applyIntegratedSeekbarChrome();
 };
 
 // When floating is disabled, inject square-bar CSS to override Tidal's native floating styles
@@ -213,6 +253,182 @@ const applyQualityProgressColor = (): void => {
 if (settings.qualityProgressColor) {
 	applyQualityProgressColor();
 }
+
+// MARKER: Integrated Seek Bar
+// Moves the seekbar to the top border of the player bar | Inspired by Tokyo Tidal-HiFi theme (ages ago)
+
+let integratedSeekbarIntervalId: ReturnType<typeof setInterval> | null = null;
+
+const clearIntegratedSeekbarInterval = (): void => {
+	if (integratedSeekbarIntervalId !== null) {
+		clearInterval(integratedSeekbarIntervalId);
+		integratedSeekbarIntervalId = null;
+	}
+};
+
+// Restore Original DOM Structure (cleanup)
+const unwrapIntegratedSeekbarTimes = (footerPlayer: HTMLElement): void => {
+	const wrap = footerPlayer.querySelector(".rl-seekbar-times-wrap");
+	if (!wrap?.parentElement) return;
+	const row = wrap.parentElement;
+	const bar =
+		(row.querySelector(".rl-seekbar-bar") as HTMLElement | null) ??
+		(row.querySelector('[data-test="progress-bar"]')?.parentElement as
+			| HTMLElement
+			| null);
+	const p1 = wrap.querySelector('[data-test="current-time"]')
+		?.parentElement as HTMLElement | undefined;
+	const p2 = wrap.querySelector('[data-test="duration"]')
+		?.parentElement as HTMLElement | undefined;
+	wrap.querySelector(".rl-seekbar-time-sep")?.remove();
+	if (p1 && p2 && bar) {
+		row.insertBefore(p1, wrap);
+		row.insertBefore(p2, bar.nextSibling);
+	} else if (p1 && p2) {
+		row.insertBefore(p1, wrap);
+		row.appendChild(p2);
+	}
+	wrap.remove();
+};
+
+const syncIntegratedSeekbarCombinedTime = (footerPlayer: HTMLElement): void => {
+	const el = footerPlayer.querySelector(
+		".rl-seekbar-combined-time",
+	) as HTMLElement | null;
+	if (!el) return;
+	const row = footerPlayer.querySelector(".rl-seekbar-container");
+	if (!row) return;
+	const cur =
+		row.querySelector('[data-test="current-time"]')?.textContent?.trim() ?? "";
+	const dur =
+		row.querySelector('[data-test="duration"]')?.textContent?.trim() ?? "";
+	el.textContent = `${cur} | ${dur}`;
+};
+
+// Finds the Seekbar Row
+const getScrubberRowFromFooter = (
+	footerPlayer: HTMLElement,
+): HTMLElement | null => {
+	const pb = footerPlayer.querySelector('[data-test="progress-bar"]');
+	const bar = pb?.parentElement;
+	return bar?.parentElement ?? null;
+};
+
+const clearNativeScrubberTimeDisplay = (footerPlayer: HTMLElement): void => {
+	const row = getScrubberRowFromFooter(footerPlayer);
+	if (!row) return;
+	for (const p of row.querySelectorAll("p")) {
+		if (
+			p.querySelector('[data-test="current-time"]') ||
+			p.querySelector('[data-test="duration"]')
+		) {
+			p.style.removeProperty("display");
+		}
+	}
+};
+
+const cleanupIntegratedSeekbarDisplay = (footerPlayer: HTMLElement): void => {
+	clearIntegratedSeekbarInterval();
+	clearNativeScrubberTimeDisplay(footerPlayer);
+	unwrapIntegratedSeekbarTimes(footerPlayer);
+	footerPlayer.querySelectorAll(".rl-seekbar-combined-time").forEach((n) => {
+		n.remove();
+	});
+	for (const el of footerPlayer.querySelectorAll(".rl-seekbar-native-time")) {
+		el.classList.remove("rl-seekbar-native-time");
+	}
+	footerPlayer.style.removeProperty("--rl-integrated-seekbar-top-radius");
+};
+
+const applyIntegratedSeekBar = (): void => {
+	const footerPlayer = document.querySelector(
+		'[data-test="footer-player"]',
+	) as HTMLElement | null;
+	if (!footerPlayer) return;
+
+	clearIntegratedSeekbarInterval();
+
+	// Cleanup
+	for (const cls of ["rl-seekbar-container", "rl-seekbar-bar", "rl-seekbar-native-time"]) {
+		footerPlayer.querySelectorAll(`.${cls}`).forEach((el) => {
+			el.classList.remove(cls);
+		});
+	}
+
+	if (!settings.integratedSeekBar) {
+		document.body.classList.remove("rl-integrated-seekbar");
+		cleanupIntegratedSeekbarDisplay(footerPlayer);
+		return;
+	}
+
+	document.body.classList.add("rl-integrated-seekbar");
+	applyIntegratedSeekbarChrome();
+
+	const progressBar = footerPlayer.querySelector(
+		'[data-test="progress-bar"]',
+	) as HTMLElement | null;
+	if (!progressBar) return;
+
+	const scrubberBar = progressBar.parentElement as HTMLElement | null;
+	const scrubberRow = scrubberBar?.parentElement as HTMLElement | null;
+	if (!scrubberRow) return;
+
+	scrubberRow.classList.add("rl-seekbar-container");
+
+	// Mark the Seekbar (so it's moved in a sec)
+	if (scrubberBar) {
+		scrubberBar.classList.add("rl-seekbar-bar");
+	}
+
+	const currentTime = scrubberRow.querySelector(
+		'[data-test="current-time"]',
+	) as HTMLElement | null;
+	const duration = scrubberRow.querySelector(
+		'[data-test="duration"]',
+	) as HTMLElement | null;
+	const p1 = currentTime?.parentElement as HTMLElement | null;
+	const p2 = duration?.parentElement as HTMLElement | null;
+	if (!p1 || !p2) return;
+
+	unwrapIntegratedSeekbarTimes(footerPlayer);
+
+	p1.classList.add("rl-seekbar-native-time");
+	p2.classList.add("rl-seekbar-native-time");
+	p1.style.setProperty("display", "none", "important");
+	p2.style.setProperty("display", "none", "important");
+
+	const combinedNodes = scrubberRow.querySelectorAll(".rl-seekbar-combined-time");
+	for (let i = 1; i < combinedNodes.length; i++) {
+		combinedNodes[i]?.remove();
+	}
+	let combined = scrubberRow.querySelector(
+		".rl-seekbar-combined-time",
+	) as HTMLElement | null;
+	if (!combined) {
+		combined = document.createElement("span");
+		combined.className = "rl-seekbar-combined-time";
+		combined.setAttribute("aria-live", "polite");
+		scrubberRow.insertBefore(combined, p1);
+	}
+
+	syncIntegratedSeekbarCombinedTime(footerPlayer);
+	integratedSeekbarIntervalId = setInterval(() => {
+		const fp = document.querySelector(
+			'[data-test="footer-player"]',
+		) as HTMLElement | null;
+		if (!fp || !settings.integratedSeekBar) {
+			clearIntegratedSeekbarInterval();
+			return;
+		}
+		syncIntegratedSeekbarCombinedTime(fp);
+	}, 250);
+};
+
+// Apply on load
+applyIntegratedSeekBar();
+observe<HTMLElement>(unloads, '[data-test="footer-player"]', () => {
+	applyIntegratedSeekBar();
+});
 
 // Apply base styles always (I kinda dont really remember what this does but it's important i guess)
 baseStyleTag.css = baseStyles;
@@ -923,6 +1139,7 @@ const updateRadiantLyricsNowPlayingBackground = function (): void {
 (window as any).updateRadiantLyricsPlayerBarTint =
 	updateRadiantLyricsPlayerBarTint;
 (window as any).updateQualityProgressColor = applyQualityProgressColor;
+(window as any).updateIntegratedSeekBar = applyIntegratedSeekBar;
 
 const cleanUpDynamicArt = function (): void {
 	// Clean up cached Now Playing elements
@@ -1003,6 +1220,23 @@ unloads.add(() => {
 		footerPlayer.style.removeProperty("bottom");
 		footerPlayer.style.removeProperty("left");
 		footerPlayer.style.removeProperty("width");
+		footerPlayer.style.removeProperty("--rl-integrated-seekbar-top-radius");
+	}
+
+	// Clean up integrated seekbar
+	document.body.classList.remove("rl-integrated-seekbar");
+	clearIntegratedSeekbarInterval();
+	document
+		.querySelectorAll(".rl-seekbar-container, .rl-seekbar-bar, .rl-seekbar-native-time")
+		.forEach((el) => {
+			el.classList.remove(
+				"rl-seekbar-container",
+				"rl-seekbar-bar",
+				"rl-seekbar-native-time",
+			);
+		});
+	if (footerPlayer) {
+		cleanupIntegratedSeekbarDisplay(footerPlayer);
 	}
 
 	// Clean up action buttons
@@ -1030,43 +1264,16 @@ unloads.add(() => {
 
 // MARKER: Sticky Lyrics Feature
 
-const STICKY_ICONS: Record<string, string> = {
-	chevron:
-		'<svg viewBox="0 0 24 24" width="10" height="10" fill="none"><path fill-rule="evenodd" clip-rule="evenodd" d="M4.29289 8.29289C4.68342 7.90237 5.31658 7.90237 5.70711 8.29289L12 14.5858L18.2929 8.29289C18.6834 7.90237 19.3166 7.90237 19.7071 8.29289C20.0976 8.68342 20.0976 9.31658 19.7071 9.70711L12.7071 16.7071C12.3166 17.0976 11.6834 17.0976 11.2929 16.7071L4.29289 9.70711C3.90237 9.31658 3.90237 8.68342 4.29289 8.29289Z" fill="currentColor"/></svg>',
-	sparkle:
-		'<svg viewBox="0 0 512 512" width="16" height="16"><path fill="currentColor" d="M208,512a24.84,24.84,0,0,1-23.34-16l-39.84-103.6a16.06,16.06,0,0,0-9.19-9.19L32,343.34a25,25,0,0,1,0-46.68l103.6-39.84a16.06,16.06,0,0,0,9.19-9.19L184.66,144a25,25,0,0,1,46.68,0l39.84,103.6a16.06,16.06,0,0,0,9.19,9.19l103,39.63A25.49,25.49,0,0,1,400,320.52a24.82,24.82,0,0,1-16,22.82l-103.6,39.84a16.06,16.06,0,0,0-9.19,9.19L231.34,496A24.84,24.84,0,0,1,208,512Zm66.85-254.84h0Z"/><path fill="currentColor" d="M88,176a14.67,14.67,0,0,1-13.69-9.4L57.45,122.76a7.28,7.28,0,0,0-4.21-4.21L9.4,101.69a14.67,14.67,0,0,1,0-27.38L53.24,57.45a7.31,7.31,0,0,0,4.21-4.21L74.16,9.79A15,15,0,0,1,86.23.11,14.67,14.67,0,0,1,101.69,9.4l16.86,43.84a7.31,7.31,0,0,0,4.21,4.21L166.6,74.31a14.67,14.67,0,0,1,0,27.38l-43.84,16.86a7.28,7.28,0,0,0-4.21,4.21L101.69,166.6A14.67,14.67,0,0,1,88,176Z"/><path fill="currentColor" d="M400,256a16,16,0,0,1-14.93-10.26l-22.84-59.37a8,8,0,0,0-4.6-4.6l-59.37-22.84a16,16,0,0,1,0-29.86l59.37-22.84a8,8,0,0,0,4.6-4.6L384.9,42.68a16.45,16.45,0,0,1,13.17-10.57,16,16,0,0,1,16.86,10.15l22.84,59.37a8,8,0,0,0,4.6,4.6l59.37,22.84a16,16,0,0,1,0,29.86l-59.37,22.84a8,8,0,0,0-4.6,4.6l-22.84,59.37A16,16,0,0,1,400,256Z"/></svg>',
-};
-
-const getStickyIcon = (): string =>
-	STICKY_ICONS[settings.stickyLyricsIcon] ?? STICKY_ICONS.chevron;
+const STICKY_ICON =
+	'<svg viewBox="0 0 512 512" width="16" height="16"><path fill="currentColor" d="M208,512a24.84,24.84,0,0,1-23.34-16l-39.84-103.6a16.06,16.06,0,0,0-9.19-9.19L32,343.34a25,25,0,0,1,0-46.68l103.6-39.84a16.06,16.06,0,0,0,9.19-9.19L184.66,144a25,25,0,0,1,46.68,0l39.84,103.6a16.06,16.06,0,0,0,9.19,9.19l103,39.63A25.49,25.49,0,0,1,400,320.52a24.82,24.82,0,0,1-16,22.82l-103.6,39.84a16.06,16.06,0,0,0-9.19,9.19L231.34,496A24.84,24.84,0,0,1,208,512Zm66.85-254.84h0Z"/><path fill="currentColor" d="M88,176a14.67,14.67,0,0,1-13.69-9.4L57.45,122.76a7.28,7.28,0,0,0-4.21-4.21L9.4,101.69a14.67,14.67,0,0,1,0-27.38L53.24,57.45a7.31,7.31,0,0,0,4.21-4.21L74.16,9.79A15,15,0,0,1,86.23.11,14.67,14.67,0,0,1,101.69,9.4l16.86,43.84a7.31,7.31,0,0,0,4.21,4.21L166.6,74.31a14.67,14.67,0,0,1,0,27.38l-43.84,16.86a7.28,7.28,0,0,0-4.21,4.21L101.69,166.6A14.67,14.67,0,0,1,88,176Z"/><path fill="currentColor" d="M400,256a16,16,0,0,1-14.93-10.26l-22.84-59.37a8,8,0,0,0-4.6-4.6l-59.37-22.84a16,16,0,0,1,0-29.86l59.37-22.84a8,8,0,0,0,4.6-4.6L384.9,42.68a16.45,16.45,0,0,1,13.17-10.57,16,16,0,0,1,16.86,10.15l22.84,59.37a8,8,0,0,0,4.6,4.6l59.37,22.84a16,16,0,0,1,0,29.86l-59.37,22.84a8,8,0,0,0-4.6,4.6l-22.84,59.37A16,16,0,0,1,400,256Z"/></svg>';
 
 const applyStickyIcon = (): void => {
 	const trigger = document.querySelector(
 		".sticky-lyrics-trigger",
 	) as HTMLElement;
 	if (!trigger) return;
-	trigger.innerHTML = getStickyIcon();
+	trigger.innerHTML = STICKY_ICON;
 	trigger.style.paddingLeft = "5px";
-};
-
-// Console: StickyLyrics.icon = "sparkle" or "chevron"
-// I'm picky and prefer the Sparkle.. shhh
-(window as any).StickyLyrics = {
-	get icon() {
-		return settings.stickyLyricsIcon;
-	},
-	set icon(value: string) {
-		const key = value.toLowerCase();
-		if (!STICKY_ICONS[key]) {
-			console.log(
-				`[Radiant Lyrics] Unknown icon "${value}". Available: ${Object.keys(STICKY_ICONS).join(", ")}`,
-			);
-			return;
-		}
-		settings.stickyLyricsIcon = key;
-		applyStickyIcon();
-		console.log(`[Radiant Lyrics] Sticky Lyrics icon set to "${key}"`);
-	},
 };
 
 // Console: Syllables.log = true/false
@@ -1251,7 +1458,7 @@ const createStickyLyricsDropdown = (): void => {
 	const trigger = document.createElement("div");
 	trigger.className = "sticky-lyrics-trigger";
 	trigger.setAttribute("title", "Sticky Lyrics");
-	trigger.innerHTML = getStickyIcon();
+	trigger.innerHTML = STICKY_ICON;
 
 	for (const evtName of [
 		"pointerdown",

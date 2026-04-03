@@ -1,535 +1,501 @@
-import { LunaUnload, Tracer } from "@luna/core";
-import { StyleTag, PlayState } from "@luna/lib";
+import { type LunaUnload, Tracer } from "@luna/core";
+import { StyleTag, PlayState, MediaItem, observe } from "@luna/lib";
 import { settings, Settings } from "./Settings";
+import * as audio from "./audio";
+import type { AudioData } from "./audio";
+import { type Visualizer, type VisualizerType, VISUALIZER_DIMENSIONS, MINI_DIMENSIONS, ALL_SLOT_KEYS, ZONE_SLOTS, type SlotKey } from "./visualizers/types";
+import { createSpectrumLine } from "./visualizers/spectrum-line";
+import { createSpectrumBars } from "./visualizers/spectrum-bars";
+import { createOscilloscope } from "./visualizers/oscilloscope";
+import { createVectorscope } from "./visualizers/vectorscope";
+import { createLoudnessMeter } from "./visualizers/loudness-meter";
 
-// Import CSS styles for the visualizer
 import visualizerStyles from "file://styles.css?minify";
 
 export const { trace } = Tracer("[Audio Visualizer]");
-
-const log = (message: string) => console.log(`[Audio Visualizer] ${message}`);
 export { Settings };
 
-const config = {
-	enabled: true,
-	width: 200,
-	height: 40,
-	get barCount() {
-		return settings.barCount;
-	},
-	get color() {
-		return settings.barColor;
-	},
-	get barRounding() {
-		return settings.barRounding;
-	},
-	sensitivity: 1.5,
-	smoothing: 0.8,
+const log = (msg: string) => console.log(`[Audio Visualizer] ${msg}`);
+
+export const unloads = new Set<LunaUnload>();
+new StyleTag("AudioVisualizer", unloads, visualizerStyles);
+
+const FACTORIES: Record<Exclude<VisualizerType, "none">, () => Visualizer> = {
+	"spectrum-line": createSpectrumLine,
+	"spectrum-bars": createSpectrumBars,
+	oscilloscope: createOscilloscope,
+	vectorscope: createVectorscope,
+	"loudness-meter": createLoudnessMeter,
 };
 
-// Clean up resources
-export const unloads = new Set<LunaUnload>();
+// Slot Management
 
-// StyleTag for CSS
-const styleTag = new StyleTag("AudioVisualizer", unloads, visualizerStyles);
-
-// Audio context and analyzer
-let audioContext: AudioContext | null = null;
-let analyser: AnalyserNode | null = null;
-let audioSource: MediaElementAudioSourceNode | null = null;
-let dataArray: Uint8Array | null = null;
-let animationId: number | null = null;
-let currentAudioElement: HTMLAudioElement | null = null;
-let isSourceConnected: boolean = false;
-
-// Each placement gets its own container/canvas/context
-interface VisualizerSlot {
+interface Slot {
 	container: HTMLDivElement | null;
 	canvas: HTMLCanvasElement | null;
-	ctx: CanvasRenderingContext2D | null;
+	visualizer: Visualizer | null;
+	currentType: VisualizerType;
+	contextType: "webgl" | "canvas2d" | null;
 }
 
-const navSlot: VisualizerSlot = { container: null, canvas: null, ctx: null };
-const npSlot: VisualizerSlot = { container: null, canvas: null, ctx: null };
+interface SlotGroup {
+	groupContainer: HTMLDivElement;
+	slots: Slot[];
+	keys: readonly SlotKey[];
+}
 
-// Find the audio element - this is a bit of a hack but it works
-const findAudioElement = (): HTMLAudioElement | null => {
-	// Try main selectors first
-	const selectors = [
-		"audio",
-		"video",
-		"audio[data-test]",
-		'[data-test="audio-player"] audio',
-	];
+const groups = new Map<string, SlotGroup>();
+let navArrowsEl: HTMLElement | null = null;
 
-	for (const selector of selectors) {
-		const element = document.querySelector(selector) as HTMLAudioElement;
-		if (
-			element &&
-			(element.tagName === "AUDIO" || element.tagName === "VIDEO")
-		) {
-			return element;
-		}
-	}
+const getSlot = (key: SlotKey): VisualizerType =>
+	(settings as unknown as Record<string, VisualizerType>)[key] ?? "none";
 
-	// Quick scan for any audio elements
-	const audioElements = document.querySelectorAll("audio, video");
-	for (const element of audioElements) {
-		const audioEl = element as HTMLAudioElement;
-		if (audioEl.src || audioEl.currentSrc) {
-			return audioEl;
-		}
-	}
+const isWebGLViz = (type: VisualizerType): boolean =>
+	type === "spectrum-line" || type === "spectrum-bars";
 
-	return null;
-};
+const isMiniSlot = (key: SlotKey): boolean =>
+	(settings.miniSlots ?? []).includes(key);
 
-// Initialize audio visualization
-const initializeAudioVisualizer = async (): Promise<void> => {
-	try {
-		// Find the audio element
-		const audioElement = findAudioElement();
-		if (!audioElement) {
-			return;
-		}
+const getSlotDims = (type: VisualizerType, key: SlotKey) =>
+	isMiniSlot(key) && MINI_DIMENSIONS[type] ? MINI_DIMENSIONS[type] : VISUALIZER_DIMENSIONS[type];
 
-		// create audio context
-		if (!audioContext) {
-			audioContext = new AudioContext();
-			log("Created AudioContext");
-		}
-
-		// create analyser
-		if (!analyser) {
-			analyser = audioContext.createAnalyser();
-			analyser.fftSize = 512; // Fixed power of 2 that provides enough frequency bins
-			analyser.smoothingTimeConstant = config.smoothing;
-			dataArray = new Uint8Array(analyser.frequencyBinCount);
-			log("Created AnalyserNode");
-		}
-
-		// attempt audio connection if not already connected
-		if (!isSourceConnected && audioElement !== currentAudioElement) {
-			try {
-				// Create audio source - this might fail if already connected elsewhere
-				audioSource = audioContext.createMediaElementSource(audioElement);
-				audioSource.connect(analyser);
-				// CRITICAL: connect back to destination for audio output (otherwise no sound)
-				analyser.connect(audioContext.destination);
-
-				currentAudioElement = audioElement;
-				isSourceConnected = true;
-				log("Connected to audio stream with output");
-			} catch (error) {
-				// Audio is connected elsewhere - that's fine, we just can't visualize
-				if (
-					error instanceof Error &&
-					error.message.includes("already connected")
-				) {
-					log("Audio already connected elsewhere - skipping visualization");
-				}
-				return;
-			}
-		}
-
-		// Resume context only if needed and don't wait for it
-		// (otherwise it will wait for the audio to start playing)
-		if (audioContext.state === "suspended") {
-			audioContext.resume().catch(() => {}); // Fire and forget
-		}
-
-		createVisualizerUI();
-
-		// Start animation only if not already running
-		if (!animationId) {
-			animate();
-		}
-	} catch (err) {
-		// log errors
-		console.error(err);
-	}
-};
-
-const makeSlotElements = (): { container: HTMLDivElement; canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null => {
-	const container = document.createElement("div");
-	container.className = "audio-visualizer-container";
-	container.style.cssText = `
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: rgba(0, 0, 0, 0.2);
-		border-radius: 8px;
-		padding: 4px;
-		backdrop-filter: blur(10px);
-		-webkit-backdrop-filter: blur(10px);
-	`;
-
+const createSlotCanvas = (dims: { width: number; height: number }): HTMLCanvasElement => {
 	const cvs = document.createElement("canvas");
-	cvs.width = config.width;
-	cvs.height = config.height;
-	cvs.style.cssText = `
-		width: ${config.width}px;
-		height: ${config.height}px;
-		border-radius: 4px;
-	`;
-
-	container.appendChild(cvs);
-	const ctx = cvs.getContext("2d");
-	if (!ctx) return null;
-	return { container, canvas: cvs, ctx };
+	cvs.width = dims.width;
+	cvs.height = dims.height;
+	cvs.style.cssText = `width:${dims.width}px;height:${dims.height}px;border-radius:4px;display:block;`;
+	return cvs;
 };
 
-const clearSlot = (slot: VisualizerSlot): void => {
-	slot.container?.remove();
-	slot.container = null;
-	slot.canvas = null;
-	slot.ctx = null;
+const applySlotSize = (slot: Slot, dims: { width: number; height: number }): void => {
+	if (!slot.container || !slot.canvas) return;
+	slot.canvas.width = dims.width;
+	slot.canvas.height = dims.height;
+	slot.canvas.style.width = `${dims.width}px`;
+	slot.canvas.style.height = `${dims.height}px`;
+	slot.container.style.width = `${dims.width + 8}px`;
+	slot.container.style.height = `${dims.height + 8}px`;
+	slot.visualizer?.resize(dims.width, dims.height);
 };
 
-const ensureNavSlot = (): void => {
-	if (navSlot.container?.isConnected) return;
-	clearSlot(navSlot);
+const switchVisualizer = (slot: Slot, type: VisualizerType, key: SlotKey): void => {
+	if (slot.currentType === type) return;
 
-	const searchField = document.querySelector('input[class*="_searchField"]') as HTMLInputElement;
-	if (!searchField) return;
-	const searchContainer = searchField.parentElement;
-	if (!searchContainer?.parentElement) return;
+	slot.visualizer?.dispose();
+	slot.visualizer = null;
 
-	const els = makeSlotElements();
-	if (!els) return;
-	els.container.style.marginRight = "12px";
-	Object.assign(navSlot, els);
-	searchContainer.parentElement.insertBefore(els.container, searchContainer);
-};
-
-const ensureNpSlot = (): void => {
-	if (npSlot.container?.isConnected) return;
-	clearSlot(npSlot);
-
-	const artistInfo = document.querySelector('[data-test="artist-info"]');
-	if (!artistInfo) return;
-	const leftContent = artistInfo.parentElement;
-	if (!leftContent) return;
-
-	const els = makeSlotElements();
-	if (!els) return;
-	els.container.style.marginLeft = "12px";
-	Object.assign(npSlot, els);
-	leftContent.insertBefore(els.container, artistInfo.nextSibling);
-};
-
-const createVisualizerUI = (): void => {
-	if (!config.enabled) return;
-	ensureNavSlot();
-	ensureNpSlot();
-};
-
-const removeVisualizerUI = (): void => {
-	clearSlot(navSlot);
-	clearSlot(npSlot);
-};
-
-// Animation loop for rendering visualizer
-const animate = (): void => {
-	// Re-attach slots that got disconnected from the DOM
-	createVisualizerUI();
-
-	const slots = [navSlot, npSlot].filter(s => s.ctx && s.canvas);
-	if (slots.length === 0) {
-		animationId = requestAnimationFrame(animate);
+	if (type === "none") {
+		if (slot.container) slot.container.style.display = "none";
+		slot.currentType = "none";
 		return;
 	}
 
-	let hasRealAudio = false;
-	if (analyser && dataArray) {
-		analyser.getByteFrequencyData(dataArray);
-		const avgVolume =
-			dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
-		hasRealAudio = avgVolume > 5;
+	const dims = getSlotDims(type, key);
+	if (slot.container) {
+		slot.canvas?.remove();
+		const cvs = createSlotCanvas(dims);
+		slot.container.appendChild(cvs);
+		slot.canvas = cvs;
+		slot.contextType = isWebGLViz(type) ? "webgl" : "canvas2d";
+
+		slot.container.style.display = "flex";
+		slot.container.style.width = `${dims.width + 8}px`;
+		slot.container.style.height = `${dims.height + 8}px`;
 	}
 
-	for (const slot of slots) {
-		const ctx = slot.ctx!;
-		const cvs = slot.canvas!;
-		ctx.fillStyle = config.color;
-		ctx.strokeStyle = config.color;
-		ctx.clearRect(0, 0, cvs.width, cvs.height);
+	const factory = FACTORIES[type];
+	const viz = factory();
+	if (slot.canvas) {
+		viz.init(slot.canvas, settings.barColor);
+	}
+	slot.visualizer = viz;
+	slot.currentType = type;
+};
 
-		if (hasRealAudio && analyser && dataArray) {
-			drawBars(ctx, cvs);
+const syncGroupHeights = (group: SlotGroup): void => {
+	let maxH = 0;
+	for (let i = 0; i < group.keys.length; i++) {
+		const slot = group.slots[i];
+		if (slot.currentType === "none") continue;
+		const dims = getSlotDims(slot.currentType, group.keys[i]);
+		if (dims.height > maxH) maxH = dims.height;
+	}
+	if (maxH === 0) return;
+
+	for (let i = 0; i < group.keys.length; i++) {
+		const slot = group.slots[i];
+		if (!slot.container || !slot.canvas || slot.currentType === "none") continue;
+		const dims = getSlotDims(slot.currentType, group.keys[i]);
+		const targetH = Math.max(dims.height, maxH);
+		applySlotSize(slot, { width: dims.width, height: targetH });
+	}
+};
+
+const updateGroupVisibility = (group: SlotGroup): void => {
+	const allNone = group.slots.every(s => s.currentType === "none");
+	group.groupContainer.style.display = allNone ? "none" : "flex";
+	if (!allNone) syncGroupHeights(group);
+
+	if (group === groups.get("topNav-left") && navArrowsEl) {
+		navArrowsEl.style.marginRight = allNone ? "" : "0";
+	}
+};
+
+const createGroup = (keys: readonly SlotKey[], zone: string, position: string): SlotGroup => {
+	const groupContainer = document.createElement("div");
+	groupContainer.className = "av-slot-group";
+	groupContainer.dataset.zone = zone;
+	groupContainer.dataset.position = position;
+
+	const slots: Slot[] = [];
+	for (const _key of keys) {
+		const slotContainer = document.createElement("div");
+		slotContainer.className = "audio-visualizer-container";
+		slotContainer.style.display = "none";
+		groupContainer.appendChild(slotContainer);
+		slots.push({
+			container: slotContainer,
+			canvas: null,
+			visualizer: null,
+			currentType: "none",
+			contextType: null,
+		});
+	}
+
+	return { groupContainer, slots, keys };
+};
+
+const initGroupVisualizers = (group: SlotGroup): void => {
+	for (let i = 0; i < group.keys.length; i++) {
+		const key = group.keys[i];
+		const type = getSlot(key);
+		if (type !== "none") {
+			switchVisualizer(group.slots[i], type, key);
+		}
+	}
+	updateGroupVisibility(group);
+};
+
+const initAllGroups = (): void => {
+	for (const [zoneId, positions] of Object.entries(ZONE_SLOTS)) {
+		for (const [posId, keys] of Object.entries(positions)) {
+			if (!keys) continue;
+			const groupId = `${zoneId}-${posId}`;
+			const group = createGroup(keys, zoneId, posId);
+			groups.set(groupId, group);
+		}
+	}
+};
+
+// UI Attachment
+
+const attachNavGroups = (anchor: Element): void => {
+	const parent = anchor.parentElement;
+	if (!parent) return;
+
+	const navLeft = groups.get("topNav-left");
+	if (navLeft && !navLeft.groupContainer.isConnected) {
+		const navArrows = parent.querySelector('[data-test="navigation-arrows"]') as HTMLElement | null;
+		if (navArrows) {
+			navArrowsEl = navArrows;
+			navArrows.after(navLeft.groupContainer);
 		} else {
-			drawScrollingWave(ctx, cvs);
+			parent.prepend(navLeft.groupContainer);
+		}
+		navLeft.groupContainer.style.marginRight = "auto";
+		initGroupVisualizers(navLeft);
+	}
+
+	const navRight = groups.get("topNav-right");
+	if (navRight && !navRight.groupContainer.isConnected) {
+		parent.insertBefore(navRight.groupContainer, anchor);
+		initGroupVisualizers(navRight);
+	}
+};
+
+const attachNpGroups = (anchor: Element): void => {
+	const leftContent = anchor.parentElement;
+	if (!leftContent) return;
+	const header = leftContent.parentElement as HTMLElement | null;
+	if (!header) return;
+
+	const npLeft = groups.get("nowPlaying-left");
+	if (npLeft && !npLeft.groupContainer.isConnected) {
+		leftContent.insertBefore(npLeft.groupContainer, anchor.nextSibling);
+		initGroupVisualizers(npLeft);
+	}
+
+	const buttonsDiv = header.querySelector(':scope > [class*="buttons"]') as HTMLElement | null;
+	const npRight = groups.get("nowPlaying-right");
+	if (npRight && !npRight.groupContainer.isConnected) {
+		if (buttonsDiv) {
+			header.insertBefore(npRight.groupContainer, buttonsDiv);
+		} else {
+			header.appendChild(npRight.groupContainer);
+		}
+		npRight.groupContainer.style.marginLeft = "auto";
+		initGroupVisualizers(npRight);
+	}
+};
+
+const attachPbGroups = (anchor: Element): void => {
+	const trackInfo = anchor.querySelector('[data-test="track-info"]');
+	const utilityContainer = anchor.querySelector('[class*="utilityContainer"]');
+
+	const pbLeft = groups.get("playerBar-left");
+	if (pbLeft && !pbLeft.groupContainer.isConnected && trackInfo) {
+		trackInfo.appendChild(pbLeft.groupContainer);
+		initGroupVisualizers(pbLeft);
+	}
+
+	const pbRight = groups.get("playerBar-right");
+	if (pbRight && !pbRight.groupContainer.isConnected && utilityContainer) {
+		utilityContainer.prepend(pbRight.groupContainer);
+		initGroupVisualizers(pbRight);
+	}
+};
+
+initAllGroups();
+
+observe(unloads, '[data-test="search-popover-container"]', attachNavGroups);
+observe(unloads, '[data-test="artist-info"]', attachNpGroups);
+observe(unloads, '[data-test="footer-player"]', attachPbGroups);
+
+const existingSearch = document.querySelector('[data-test="search-popover-container"]');
+if (existingSearch) attachNavGroups(existingSearch);
+const existingArtist = document.querySelector('[data-test="artist-info"]');
+if (existingArtist) attachNpGroups(existingArtist);
+const existingFooter = document.querySelector('[data-test="footer-player"]');
+if (existingFooter) attachPbGroups(existingFooter);
+
+// Audio Connection stuff
+
+const fft = () => settings.fftSize ?? 2048;
+const reactivityToSmoothing = (r: number) => Math.max(0, Math.min(0.95, (100 - r) / 100));
+const smooth = () => reactivityToSmoothing(settings.reactivity ?? 30);
+
+let lastReactivity = settings.reactivity ?? 30;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let retryDelay = 500;
+const MAX_RETRY_DELAY = 5000;
+let silentFrames = 0;
+const SILENT_THRESHOLD = 120;
+
+const clearRetry = (): void => {
+	if (retryTimer !== null) {
+		clearTimeout(retryTimer);
+		retryTimer = null;
+	}
+	retryDelay = 500;
+};
+
+const tryConnect = (): boolean => {
+	const ok = audio.connect(fft(), smooth());
+	if (ok) {
+		clearRetry();
+		silentFrames = 0;
+	}
+	return ok;
+};
+
+const tryReconnect = (): boolean => {
+	const ok = audio.reconnect(fft(), smooth());
+	if (ok) {
+		clearRetry();
+		silentFrames = 0;
+	}
+	return ok;
+};
+
+const scheduleRetry = (): void => {
+	if (retryTimer !== null) return;
+	retryTimer = setTimeout(() => {
+		retryTimer = null;
+		if (!PlayState.playing) return;
+		if (!tryConnect()) {
+			retryDelay = Math.min(retryDelay * 2, MAX_RETRY_DELAY);
+			scheduleRetry();
+		}
+	}, retryDelay);
+};
+
+observe(unloads, "#video-one", () => {
+	log("video-one element observed in DOM");
+	silentFrames = 0;
+	if (PlayState.playing) {
+		if (!tryReconnect()) scheduleRetry();
+	}
+});
+
+PlayState.onState(unloads, (state) => {
+	if (state === "PLAYING") {
+		silentFrames = 0;
+		if (!audio.isConnected() || audio.videoChanged()) {
+			if (!tryReconnect()) scheduleRetry();
+		}
+	} else {
+		clearRetry();
+	}
+});
+
+MediaItem.onMediaTransition(unloads, () => {
+	log("Media transition");
+	silentFrames = 0;
+	setTimeout(() => {
+		if (PlayState.playing) {
+			if (!tryReconnect()) scheduleRetry();
+		}
+	}, 300);
+});
+
+// Idle Animation Synthetic Data
+
+let waveTime = 0;
+const IDLE_SIZE = 1024;
+const idleByteFreq = new Uint8Array(IDLE_SIZE);
+const idleByteTime = new Uint8Array(IDLE_SIZE);
+const idleFloatFreq = new Float32Array(IDLE_SIZE);
+const idleFloatTime = new Float32Array(IDLE_SIZE);
+const idleLeftTime = new Float32Array(IDLE_SIZE);
+const idleRightTime = new Float32Array(IDLE_SIZE);
+
+const generateIdleData = (): AudioData => {
+	for (let i = 0; i < IDLE_SIZE; i++) {
+		const x = i / IDLE_SIZE;
+		const wave1 = Math.sin(x * Math.PI * 2 + waveTime) * 0.3;
+		const wave2 = Math.sin(x * Math.PI * 4 + waveTime * 1.3) * 0.2;
+		const wave3 = Math.sin(x * Math.PI * 6 + waveTime * 0.7) * 0.1;
+		const combined = (wave1 + wave2 + wave3 + 1) / 2;
+		const travel = Math.sin(x * Math.PI * 3 - waveTime * 2) * 0.5 + 0.5;
+
+		const byteVal = Math.floor(combined * travel * 140 + 20);
+		idleByteFreq[i] = byteVal;
+		idleFloatFreq[i] = -40 + byteVal * 0.3;
+
+		const timeSample = Math.sin(x * Math.PI * 8 + waveTime * 3) * 0.15;
+		idleByteTime[i] = 128 + Math.floor(timeSample * 127);
+		idleFloatTime[i] = timeSample;
+		idleLeftTime[i] = timeSample;
+		idleRightTime[i] = Math.sin(x * Math.PI * 8 + waveTime * 3 + 0.3) * 0.15;
+	}
+
+	return {
+		byteFrequency: idleByteFreq,
+		byteTimeDomain: idleByteTime,
+		floatFrequency: idleFloatFreq,
+		floatTimeDomain: idleFloatTime,
+		leftTimeDomain: idleLeftTime,
+		rightTimeDomain: idleRightTime,
+		sampleRate: 44100,
+		fftSize: IDLE_SIZE * 2,
+		binCount: IDLE_SIZE,
+	};
+};
+
+// Animation Loop
+
+let animationId: number | null = null;
+const lastSlotTypes = new Map<SlotKey, VisualizerType>();
+const lastMiniState = new Map<SlotKey, boolean>();
+
+for (const key of ALL_SLOT_KEYS) {
+	lastSlotTypes.set(key, getSlot(key));
+	lastMiniState.set(key, isMiniSlot(key));
+}
+
+const animate = (): void => {
+	for (const group of groups.values()) {
+		let changed = false;
+		for (let i = 0; i < group.keys.length; i++) {
+			const key = group.keys[i];
+			const currentType = getSlot(key);
+			const lastType = lastSlotTypes.get(key) ?? "none";
+			const mini = isMiniSlot(key);
+			const wasMini = lastMiniState.get(key) ?? false;
+			if (currentType !== lastType) {
+				switchVisualizer(group.slots[i], currentType, key);
+				lastSlotTypes.set(key, currentType);
+				lastMiniState.set(key, mini);
+				changed = true;
+			} else if (mini !== wasMini && currentType !== "none") {
+				const dims = getSlotDims(currentType, key);
+				applySlotSize(group.slots[i], dims);
+				lastMiniState.set(key, mini);
+				changed = true;
+			}
+		}
+		if (changed) updateGroupVisibility(group);
+	}
+
+	const currentReactivity = settings.reactivity ?? 30;
+	if (currentReactivity !== lastReactivity) {
+		audio.setSmoothing(reactivityToSmoothing(currentReactivity));
+		lastReactivity = currentReactivity;
+	}
+
+	waveTime += 0.05;
+	const data = audio.sample();
+	const hasSignal = data && audio.hasSignal(data);
+
+	if (PlayState.playing && audio.isConnected()) {
+		if (!hasSignal) {
+			silentFrames++;
+			if (silentFrames >= SILENT_THRESHOLD) {
+				log("Silent for too long, reconnecting...");
+				silentFrames = 0;
+				if (!tryReconnect()) scheduleRetry();
+			}
+		} else {
+			silentFrames = 0;
+		}
+	} else if (PlayState.playing && !audio.isConnected() && retryTimer === null) {
+		scheduleRetry();
+	}
+
+	const renderData = hasSignal ? data : generateIdleData();
+
+	for (const group of groups.values()) {
+		for (const slot of group.slots) {
+			if (!slot.canvas || slot.currentType === "none" || !slot.visualizer) continue;
+			slot.visualizer.render(renderData, settings.barColor);
 		}
 	}
 
 	animationId = requestAnimationFrame(animate);
 };
 
-// Global wave animation state
-let waveTime = 0;
+// Init
 
-// Helper function to draw rounded rectangles
-const drawRoundedRect = (
-	ctx: CanvasRenderingContext2D,
-	x: number,
-	y: number,
-	width: number,
-	height: number,
-	radius: number,
-): void => {
-	ctx.beginPath();
-	ctx.roundRect(x, y, width, height, radius);
-	ctx.fill();
-};
+log("Initializing...");
 
-const drawScrollingWave = (ctx: CanvasRenderingContext2D, cvs: HTMLCanvasElement): void => {
-	waveTime += 0.05 / [navSlot, npSlot].filter(s => s.ctx).length;
+if (PlayState.playing) {
+	if (!tryConnect()) scheduleRetry();
+}
 
-	const barCount = config.barCount;
-	const barWidth = cvs.width / barCount;
-	const maxHeight = cvs.height * 0.6;
+animationId = requestAnimationFrame(animate);
 
-	ctx.fillStyle = config.color;
+// Cleanup
 
-	for (let i = 0; i < barCount; i++) {
-		const x = i / barCount;
-		const wave1 = Math.sin(x * Math.PI * 2 + waveTime) * 0.3;
-		const wave2 = Math.sin(x * Math.PI * 4 + waveTime * 1.3) * 0.2;
-		const wave3 = Math.sin(x * Math.PI * 6 + waveTime * 0.7) * 0.1;
-		const combinedWave = (wave1 + wave2 + wave3 + 1) / 2;
-		const travelWave = Math.sin(x * Math.PI * 3 - waveTime * 2) * 0.5 + 0.5;
-		const barHeight = maxHeight * combinedWave * travelWave * 0.8 + 2;
+unloads.add(() => {
+	log("Plugin unloading");
+	clearRetry();
 
-		const xPos = i * barWidth;
-		const yPos = (cvs.height - barHeight) / 2;
-
-		if (config.barRounding) {
-			drawRoundedRect(ctx, xPos, yPos, barWidth - 1, barHeight, 2);
-		} else {
-			ctx.fillRect(xPos, yPos, barWidth - 1, barHeight);
-		}
+	if (navArrowsEl) {
+		navArrowsEl.style.marginRight = "";
+		navArrowsEl = null;
 	}
-};
-
-const drawBars = (ctx: CanvasRenderingContext2D, cvs: HTMLCanvasElement): void => {
-	if (!dataArray) return;
-
-	const barWidth = cvs.width / config.barCount;
-	const heightScale = cvs.height / 255;
-
-	ctx.fillStyle = config.color;
-
-	for (let i = 0; i < config.barCount; i++) {
-		const dataIndex = Math.floor(i * (dataArray.length / config.barCount));
-		const barHeight = dataArray[dataIndex] * config.sensitivity * heightScale;
-
-		const x = i * barWidth;
-		const y = cvs.height - barHeight;
-
-		if (config.barRounding) {
-			drawRoundedRect(ctx, x, y, barWidth - 1, barHeight, 2);
-		} else {
-			ctx.fillRect(x, y, barWidth - 1, barHeight);
-		}
-	}
-};
-
-// Draw waveform visualization - NOT IMPLEMENTED YET
-// const drawWaveform = (): void => {
-//     if (!canvasContext || !dataArray || !canvas) return;
-
-//     const centerY = canvas.height / 2;
-//     const amplitudeScale = canvas.height / 512;
-
-//     canvasContext.strokeStyle = config.color;
-//     canvasContext.lineWidth = 2;
-//     canvasContext.beginPath();
-
-//     for (let i = 0; i < config.barCount; i++) {
-//         const dataIndex = Math.floor(i * (dataArray.length / config.barCount));
-//         const amplitude = (dataArray[dataIndex] - 128) * config.sensitivity * amplitudeScale;
-
-//         const x = (i / config.barCount) * canvas.width;
-//         const y = centerY + amplitude;
-
-//         if (i === 0) {
-//             canvasContext.moveTo(x, y);
-//         } else {
-//             canvasContext.lineTo(x, y);
-//         }
-//     }
-
-//     canvasContext.stroke();
-// };
-
-// Draw circular visualization - NOT IMPLEMENTED YET
-// const drawCircular = (): void => {
-//     if (!canvasContext || !dataArray || !canvas) return;
-
-//     const centerX = canvas.width / 2;
-//     const centerY = canvas.height / 2;
-//     const radius = Math.min(centerX, centerY) - 10;
-
-//     canvasContext.strokeStyle = config.color;
-//     canvasContext.lineWidth = 2;
-
-//     for (let i = 0; i < config.barCount; i++) {
-//         const dataIndex = Math.floor(i * (dataArray.length / config.barCount));
-//         const amplitude = (dataArray[dataIndex] * config.sensitivity) / 255;
-
-//         const angle = (i / config.barCount) * Math.PI * 2;
-//         const startX = centerX + Math.cos(angle) * radius * 0.7;
-//         const startY = centerY + Math.sin(angle) * radius * 0.7;
-//         const endX = centerX + Math.cos(angle) * radius * (0.7 + amplitude * 0.3);
-//         const endY = centerY + Math.sin(angle) * radius * (0.7 + amplitude * 0.3);
-
-//         canvasContext.beginPath();
-//         canvasContext.moveTo(startX, startY);
-//         canvasContext.lineTo(endX, endY);
-//         canvasContext.stroke();
-//     }
-// };
-
-const updateAudioVisualizer = (): void => {
-	if (analyser) {
-		analyser.fftSize = 512;
-		analyser.smoothingTimeConstant = config.smoothing;
-		dataArray = new Uint8Array(analyser.frequencyBinCount);
-	}
-
-	for (const slot of [navSlot, npSlot]) {
-		if (slot.canvas) {
-			slot.canvas.width = config.width;
-			slot.canvas.height = config.height;
-			slot.canvas.style.width = `${config.width}px`;
-			slot.canvas.style.height = `${config.height}px`;
-		}
-	}
-
-	removeVisualizerUI();
-	createVisualizerUI();
-};
-
-// Make updateAudioVisualizer available globally for settings
-(window as any).updateAudioVisualizer = updateAudioVisualizer;
-
-// Clean up function
-const cleanupAudioVisualizer = (): void => {
-	// stop animation and hide UI - don't touch audio connections (otherwise it will reconnect)
-	if (animationId) {
-		cancelAnimationFrame(animationId);
-		animationId = null;
-	}
-
-	removeVisualizerUI();
-
-	// i was killing audio connections - But it was reconnecting and being a pain
-	// so i just left it alone - it works fine
-};
-
-// Initialize when DOM is ready and track is playing
-const observePlayState = (): void => {
-	let hasTriedInitialization = false;
-	let checkCount = 0;
-
-	const checkAndInitialize = () => {
-		checkCount++;
-
-		// Only try to initialize once when music starts playing
-		if (PlayState.playing && !hasTriedInitialization) {
-			hasTriedInitialization = true;
-			log("Initializing audio visualizer...");
-
-			// Initialize immediately - no delay (after audio starts playing ofc)
-			initializeAudioVisualizer().then(() => {
-				if (audioContext && analyser) {
-					log("Audio visualizer ready!");
-				} else {
-					hasTriedInitialization = false; // Allow retry if failed
-				}
-			});
-		} else if (!PlayState.playing && hasTriedInitialization) {
-			// Reset try flag when music stops so it can try again next time (otherwise it explode)
-			hasTriedInitialization = false;
-		}
-
-		// Keep animation running regardless of play state
-		if (!animationId) {
-			animate();
-		}
-	};
-
-	// Start with fast checking, then slow down
-	const fastInterval = setInterval(() => {
-		checkAndInitialize();
-		if (checkCount > 10) {
-			// After 10 quick checks, switch to slower
-			clearInterval(fastInterval);
-			const slowInterval = setInterval(checkAndInitialize, 2000);
-			unloads.add(() => clearInterval(slowInterval));
-		}
-	}, 200); // Check every 200ms initially
-
-	unloads.add(() => clearInterval(fastInterval));
-
-	// Immediate first check
-	checkAndInitialize();
-};
-
-// Initialize the plugin
-const initialize = (): void => {
-	log("Audio Visualizer plugin initializing...");
-
-	// Start immediately - DOM should be ready by plugin load
-	setTimeout(() => {
-		log("Starting visualizer...");
-		// Create UI immediately so wave effect shows
-		createVisualizerUI();
-		// Start animation loop immediately
-		animate();
-		// Also observe play state for audio detection
-		observePlayState();
-	}, 100); // Minimal delay to ensure DOM is ready
-};
-
-// Complete cleanup function for plugin unload
-const completeCleanup = (): void => {
-	log("Complete cleanup - plugin unloading");
 
 	if (animationId) {
 		cancelAnimationFrame(animationId);
 		animationId = null;
 	}
 
-	removeVisualizerUI();
-
-	// Fully disconnect and reset everything
-	if (audioSource) {
-		try {
-			audioSource.disconnect();
-			log("Disconnected audio source completely");
-		} catch (e) {
-			log("Audio source already disconnected");
+	for (const group of groups.values()) {
+		for (const slot of group.slots) {
+			slot.visualizer?.dispose();
 		}
+		group.groupContainer.remove();
 	}
-
-	// Close audio context completely on plugin unload
-	if (audioContext && audioContext.state !== "closed") {
-		audioContext.close();
-		log("Closed AudioContext");
-	}
-
-	// Reset all references
-	audioContext = null;
-	analyser = null;
-	audioSource = null;
-	dataArray = null;
-	currentAudioElement = null;
-	isSourceConnected = false;
-};
-
-// Register cleanup
-unloads.add(completeCleanup);
-
-// Start initialization
-initialize();
+	groups.clear();
+	audio.dispose();
+});
