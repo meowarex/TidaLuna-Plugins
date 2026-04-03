@@ -149,11 +149,7 @@ const applyPlayerBarTintToElement = (): void => {
 		);
 	} else {
 		footerPlayer.style.removeProperty("background-color");
-		footerPlayer.style.setProperty(
-			"background",
-			"linear-gradient(rgba(60,60,60,0.35) 0%, rgba(60,60,60,0.35) 27%, rgba(61,61,61,0.35) 35%, rgba(62,62,62,0.35) 43.5%, rgba(63,63,63,0.35) 53%, rgba(65,65,65,0.35) 66%, rgba(67,67,67,0.35) 81%, rgba(70,70,70,0.35) 100%)",
-			"important",
-		);
+		footerPlayer.style.removeProperty("background");
 	}
 	if (settings.playerBarBlur) {
 		footerPlayer.style.setProperty(
@@ -167,8 +163,8 @@ const applyPlayerBarTintToElement = (): void => {
 			"important",
 		);
 	} else {
-		footerPlayer.style.setProperty("backdrop-filter", "none", "important");
-		footerPlayer.style.setProperty("-webkit-backdrop-filter", "none", "important");
+		footerPlayer.style.removeProperty("backdrop-filter");
+		footerPlayer.style.removeProperty("-webkit-backdrop-filter");
 	}
 	if (settings.floatingPlayerBar) {
 		footerPlayer.style.setProperty(

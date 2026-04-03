@@ -157,19 +157,19 @@ export const videoChanged = (): boolean => {
 };
 
 export const sample = (): AudioData | null => {
-	if (!monoAnalyser || !monoByteFreq || !monoByteTime || !monoFloatFreq || !monoFloatTime || !leftFloatTime || !rightFloatTime) return null;
+	const ctx = audioContext;
+	if (!ctx || !monoAnalyser || !monoByteFreq || !monoByteTime || !monoFloatFreq || !monoFloatTime || !leftFloatTime || !rightFloatTime || !leftAnalyser || !rightAnalyser) return null;
 
-	// Recover from suspended context (can happen after tab becomes inactive)
-	if (audioContext?.state === "suspended") {
-		audioContext.resume().catch(() => {});
+	if (ctx.state === "suspended") {
+		ctx.resume().catch(() => {});
 	}
 
 	monoAnalyser.getByteFrequencyData(monoByteFreq);
 	monoAnalyser.getByteTimeDomainData(monoByteTime);
 	monoAnalyser.getFloatFrequencyData(monoFloatFreq);
 	monoAnalyser.getFloatTimeDomainData(monoFloatTime);
-	leftAnalyser!.getFloatTimeDomainData(leftFloatTime);
-	rightAnalyser!.getFloatTimeDomainData(rightFloatTime);
+	leftAnalyser.getFloatTimeDomainData(leftFloatTime);
+	rightAnalyser.getFloatTimeDomainData(rightFloatTime);
 
 	return {
 		byteFrequency: monoByteFreq,
@@ -178,7 +178,7 @@ export const sample = (): AudioData | null => {
 		floatTimeDomain: monoFloatTime,
 		leftTimeDomain: leftFloatTime,
 		rightTimeDomain: rightFloatTime,
-		sampleRate: audioContext!.sampleRate,
+		sampleRate: ctx.sampleRate,
 		fftSize: monoAnalyser.fftSize,
 		binCount: monoAnalyser.frequencyBinCount,
 	};
