@@ -3,7 +3,6 @@ import {
 	LunaSettings,
 	LunaNumberSetting,
 	LunaSwitchSetting,
-	LunaTextSetting,
 } from "@luna/ui";
 import React from "react";
 
@@ -78,7 +77,6 @@ export const Settings = () => {
 		setBarColor(color);
 		setCustomInput(color);
 		settings.barColor = color;
-		(window as any).updateAudioVisualizer?.();
 	};
 
 	const addCustomColor = () => {
@@ -125,7 +123,6 @@ export const Settings = () => {
 				onChange={(_, checked) => {
 					setBarRounding(checked);
 					settings.barRounding = checked;
-					(window as any).updateAudioVisualizer?.();
 				}}
 			/>
 
@@ -139,7 +136,6 @@ export const Settings = () => {
 				onNumber={(value: number) => {
 					setBarCount(value);
 					settings.barCount = value;
-					(window as any).updateAudioVisualizer?.();
 				}}
 			/>
 

@@ -1,17 +1,15 @@
-import { LunaUnload, Tracer } from "@luna/core";
-import { StyleTag, PlayState } from "@luna/lib";
+import { type LunaUnload, Tracer } from "@luna/core";
+import { StyleTag, PlayState, MediaItem, observe } from "@luna/lib";
 import { settings, Settings } from "./Settings";
 
-// Import CSS styles for the visualizer
 import visualizerStyles from "file://styles.css?minify";
 
 export const { trace } = Tracer("[Audio Visualizer]");
-
-const log = (message: string) => console.log(`[Audio Visualizer] ${message}`);
 export { Settings };
 
+const log = (message: string) => console.log(`[Audio Visualizer] ${message}`);
+
 const config = {
-	enabled: true,
 	width: 200,
 	height: 40,
 	get barCount() {
@@ -27,22 +25,19 @@ const config = {
 	smoothing: 0.8,
 };
 
-// Clean up resources
 export const unloads = new Set<LunaUnload>();
 
-// StyleTag for CSS
-const styleTag = new StyleTag("AudioVisualizer", unloads, visualizerStyles);
+new StyleTag("AudioVisualizer", unloads, visualizerStyles);
 
-// Audio context and analyzer
+
 let audioContext: AudioContext | null = null;
 let analyser: AnalyserNode | null = null;
-let audioSource: MediaElementAudioSourceNode | null = null;
-let dataArray: Uint8Array | null = null;
+let audioSource: MediaStreamAudioSourceNode | null = null;
+let dataArray: Uint8Array<ArrayBuffer> | null = null;
 let animationId: number | null = null;
-let currentAudioElement: HTMLAudioElement | null = null;
-let isSourceConnected: boolean = false;
+let isSourceConnected = false;
 
-// Each placement gets its own container/canvas/context
+
 interface VisualizerSlot {
 	container: HTMLDivElement | null;
 	canvas: HTMLCanvasElement | null;
@@ -52,103 +47,47 @@ interface VisualizerSlot {
 const navSlot: VisualizerSlot = { container: null, canvas: null, ctx: null };
 const npSlot: VisualizerSlot = { container: null, canvas: null, ctx: null };
 
-// Find the audio element - this is a bit of a hack but it works
-const findAudioElement = (): HTMLAudioElement | null => {
-	// Try main selectors first
-	const selectors = [
-		"audio",
-		"video",
-		"audio[data-test]",
-		'[data-test="audio-player"] audio',
-	];
 
-	for (const selector of selectors) {
-		const element = document.querySelector(selector) as HTMLAudioElement;
-		if (
-			element &&
-			(element.tagName === "AUDIO" || element.tagName === "VIDEO")
-		) {
-			return element;
-		}
-	}
+const connectAudio = (): boolean => {
+	const video = document.getElementById("video-one") as HTMLVideoElement | null;
+	const capture = (video as unknown as { captureStream?: () => MediaStream })?.captureStream;
+	if (!video || typeof capture !== "function") return false;
 
-	// Quick scan for any audio elements
-	const audioElements = document.querySelectorAll("audio, video");
-	for (const element of audioElements) {
-		const audioEl = element as HTMLAudioElement;
-		if (audioEl.src || audioEl.currentSrc) {
-			return audioEl;
-		}
-	}
-
-	return null;
-};
-
-// Initialize audio visualization
-const initializeAudioVisualizer = async (): Promise<void> => {
 	try {
-		// Find the audio element
-		const audioElement = findAudioElement();
-		if (!audioElement) {
-			return;
-		}
+		if (!audioContext) audioContext = new AudioContext();
 
-		// create audio context
-		if (!audioContext) {
-			audioContext = new AudioContext();
-			log("Created AudioContext");
-		}
-
-		// create analyser
 		if (!analyser) {
 			analyser = audioContext.createAnalyser();
-			analyser.fftSize = 512; // Fixed power of 2 that provides enough frequency bins
+			analyser.fftSize = 512;
 			analyser.smoothingTimeConstant = config.smoothing;
-			dataArray = new Uint8Array(analyser.frequencyBinCount);
-			log("Created AnalyserNode");
+			dataArray = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
 		}
 
-		// attempt audio connection if not already connected
-		if (!isSourceConnected && audioElement !== currentAudioElement) {
-			try {
-				// Create audio source - this might fail if already connected elsewhere
-				audioSource = audioContext.createMediaElementSource(audioElement);
-				audioSource.connect(analyser);
-				// CRITICAL: connect back to destination for audio output (otherwise no sound)
-				analyser.connect(audioContext.destination);
+		audioSource?.disconnect();
 
-				currentAudioElement = audioElement;
-				isSourceConnected = true;
-				log("Connected to audio stream with output");
-			} catch (error) {
-				// Audio is connected elsewhere - that's fine, we just can't visualize
-				if (
-					error instanceof Error &&
-					error.message.includes("already connected")
-				) {
-					log("Audio already connected elsewhere - skipping visualization");
-				}
-				return;
-			}
+		const stream = capture.call(video);
+		const audioTracks = stream.getAudioTracks();
+		if (audioTracks.length === 0) {
+			log("No audio tracks in captured stream");
+			return false;
 		}
 
-		// Resume context only if needed and don't wait for it
-		// (otherwise it will wait for the audio to start playing)
+		audioSource = audioContext.createMediaStreamSource(stream);
+		audioSource.connect(analyser);
+
 		if (audioContext.state === "suspended") {
-			audioContext.resume().catch(() => {}); // Fire and forget
+			audioContext.resume().catch(() => {});
 		}
 
-		createVisualizerUI();
-
-		// Start animation only if not already running
-		if (!animationId) {
-			animate();
-		}
+		log("Connected via captureStream()");
+		return true;
 	} catch (err) {
-		// log errors
-		console.error(err);
+		log(`Audio connection failed: ${err}`);
+		return false;
 	}
 };
+
+// Canvas things
 
 const makeSlotElements = (): { container: HTMLDivElement; canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null => {
 	const container = document.createElement("div");
@@ -186,89 +125,43 @@ const clearSlot = (slot: VisualizerSlot): void => {
 	slot.ctx = null;
 };
 
-const ensureNavSlot = (): void => {
+// UI Placement with Luna Observer
+
+const attachNavSlot = (anchor: Element): void => {
 	if (navSlot.container?.isConnected) return;
 	clearSlot(navSlot);
 
-	const searchField = document.querySelector('input[class*="_searchField"]') as HTMLInputElement;
-	if (!searchField) return;
-	const searchContainer = searchField.parentElement;
-	if (!searchContainer?.parentElement) return;
+	const parent = anchor.parentElement;
+	if (!parent) return;
 
 	const els = makeSlotElements();
 	if (!els) return;
 	els.container.style.marginRight = "12px";
 	Object.assign(navSlot, els);
-	searchContainer.parentElement.insertBefore(els.container, searchContainer);
+	parent.insertBefore(els.container, anchor);
 };
 
-const ensureNpSlot = (): void => {
+const attachNpSlot = (anchor: Element): void => {
 	if (npSlot.container?.isConnected) return;
 	clearSlot(npSlot);
 
-	const artistInfo = document.querySelector('[data-test="artist-info"]');
-	if (!artistInfo) return;
-	const leftContent = artistInfo.parentElement;
-	if (!leftContent) return;
+	const parent = anchor.parentElement;
+	if (!parent) return;
 
 	const els = makeSlotElements();
 	if (!els) return;
 	els.container.style.marginLeft = "12px";
 	Object.assign(npSlot, els);
-	leftContent.insertBefore(els.container, artistInfo.nextSibling);
+	parent.insertBefore(els.container, anchor.nextSibling);
 };
 
-const createVisualizerUI = (): void => {
-	if (!config.enabled) return;
-	ensureNavSlot();
-	ensureNpSlot();
-};
+observe(unloads, '[data-test="search-popover-container"]', attachNavSlot);
+observe(unloads, '[data-test="artist-info"]', attachNpSlot);
 
-const removeVisualizerUI = (): void => {
-	clearSlot(navSlot);
-	clearSlot(npSlot);
-};
+// Rendering things
 
-// Animation loop for rendering visualizer
-const animate = (): void => {
-	// Re-attach slots that got disconnected from the DOM
-	createVisualizerUI();
-
-	const slots = [navSlot, npSlot].filter(s => s.ctx && s.canvas);
-	if (slots.length === 0) {
-		animationId = requestAnimationFrame(animate);
-		return;
-	}
-
-	let hasRealAudio = false;
-	if (analyser && dataArray) {
-		analyser.getByteFrequencyData(dataArray);
-		const avgVolume =
-			dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
-		hasRealAudio = avgVolume > 5;
-	}
-
-	for (const slot of slots) {
-		const ctx = slot.ctx!;
-		const cvs = slot.canvas!;
-		ctx.fillStyle = config.color;
-		ctx.strokeStyle = config.color;
-		ctx.clearRect(0, 0, cvs.width, cvs.height);
-
-		if (hasRealAudio && analyser && dataArray) {
-			drawBars(ctx, cvs);
-		} else {
-			drawScrollingWave(ctx, cvs);
-		}
-	}
-
-	animationId = requestAnimationFrame(animate);
-};
-
-// Global wave animation state
 let waveTime = 0;
 
-// Helper function to draw rounded rectangles
 const drawRoundedRect = (
 	ctx: CanvasRenderingContext2D,
 	x: number,
@@ -283,8 +176,6 @@ const drawRoundedRect = (
 };
 
 const drawScrollingWave = (ctx: CanvasRenderingContext2D, cvs: HTMLCanvasElement): void => {
-	waveTime += 0.05 / [navSlot, npSlot].filter(s => s.ctx).length;
-
 	const barCount = config.barCount;
 	const barWidth = cvs.width / barCount;
 	const maxHeight = cvs.height * 0.6;
@@ -334,202 +225,84 @@ const drawBars = (ctx: CanvasRenderingContext2D, cvs: HTMLCanvasElement): void =
 	}
 };
 
-// Draw waveform visualization - NOT IMPLEMENTED YET
-// const drawWaveform = (): void => {
-//     if (!canvasContext || !dataArray || !canvas) return;
+// Animation Loop
 
-//     const centerY = canvas.height / 2;
-//     const amplitudeScale = canvas.height / 512;
+const animate = (): void => {
+	const slots = [navSlot, npSlot].filter(s => s.ctx && s.canvas);
 
-//     canvasContext.strokeStyle = config.color;
-//     canvasContext.lineWidth = 2;
-//     canvasContext.beginPath();
+	if (slots.length > 0) {
+		waveTime += 0.05;
 
-//     for (let i = 0; i < config.barCount; i++) {
-//         const dataIndex = Math.floor(i * (dataArray.length / config.barCount));
-//         const amplitude = (dataArray[dataIndex] - 128) * config.sensitivity * amplitudeScale;
+		let hasRealAudio = false;
+		if (analyser && dataArray) {
+			analyser.getByteFrequencyData(dataArray);
+			const avgVolume = dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
+			hasRealAudio = avgVolume > 5;
+		}
 
-//         const x = (i / config.barCount) * canvas.width;
-//         const y = centerY + amplitude;
+		for (const slot of slots) {
+			const { ctx, canvas: cvs } = slot;
+			if (!ctx || !cvs) continue;
+			ctx.clearRect(0, 0, cvs.width, cvs.height);
 
-//         if (i === 0) {
-//             canvasContext.moveTo(x, y);
-//         } else {
-//             canvasContext.lineTo(x, y);
-//         }
-//     }
-
-//     canvasContext.stroke();
-// };
-
-// Draw circular visualization - NOT IMPLEMENTED YET
-// const drawCircular = (): void => {
-//     if (!canvasContext || !dataArray || !canvas) return;
-
-//     const centerX = canvas.width / 2;
-//     const centerY = canvas.height / 2;
-//     const radius = Math.min(centerX, centerY) - 10;
-
-//     canvasContext.strokeStyle = config.color;
-//     canvasContext.lineWidth = 2;
-
-//     for (let i = 0; i < config.barCount; i++) {
-//         const dataIndex = Math.floor(i * (dataArray.length / config.barCount));
-//         const amplitude = (dataArray[dataIndex] * config.sensitivity) / 255;
-
-//         const angle = (i / config.barCount) * Math.PI * 2;
-//         const startX = centerX + Math.cos(angle) * radius * 0.7;
-//         const startY = centerY + Math.sin(angle) * radius * 0.7;
-//         const endX = centerX + Math.cos(angle) * radius * (0.7 + amplitude * 0.3);
-//         const endY = centerY + Math.sin(angle) * radius * (0.7 + amplitude * 0.3);
-
-//         canvasContext.beginPath();
-//         canvasContext.moveTo(startX, startY);
-//         canvasContext.lineTo(endX, endY);
-//         canvasContext.stroke();
-//     }
-// };
-
-const updateAudioVisualizer = (): void => {
-	if (analyser) {
-		analyser.fftSize = 512;
-		analyser.smoothingTimeConstant = config.smoothing;
-		dataArray = new Uint8Array(analyser.frequencyBinCount);
-	}
-
-	for (const slot of [navSlot, npSlot]) {
-		if (slot.canvas) {
-			slot.canvas.width = config.width;
-			slot.canvas.height = config.height;
-			slot.canvas.style.width = `${config.width}px`;
-			slot.canvas.style.height = `${config.height}px`;
+			if (hasRealAudio) {
+				drawBars(ctx, cvs);
+			} else {
+				drawScrollingWave(ctx, cvs);
+			}
 		}
 	}
 
-	removeVisualizerUI();
-	createVisualizerUI();
+	animationId = requestAnimationFrame(animate);
 };
 
-// Make updateAudioVisualizer available globally for settings
-(window as any).updateAudioVisualizer = updateAudioVisualizer;
+// Initialization (events)
 
-// Clean up function
-const cleanupAudioVisualizer = (): void => {
-	// stop animation and hide UI - don't touch audio connections (otherwise it will reconnect)
-	if (animationId) {
-		cancelAnimationFrame(animationId);
-		animationId = null;
+PlayState.onState(unloads, (state) => {
+	if (state === "PLAYING" && !isSourceConnected) {
+		isSourceConnected = connectAudio();
 	}
+});
 
-	removeVisualizerUI();
+MediaItem.onMediaTransition(unloads, () => {
+	isSourceConnected = false;
+	if (PlayState.playing) {
+		isSourceConnected = connectAudio();
+	}
+});
 
-	// i was killing audio connections - But it was reconnecting and being a pain
-	// so i just left it alone - it works fine
-};
+// Initialization (startup)
 
-// Initialize when DOM is ready and track is playing
-const observePlayState = (): void => {
-	let hasTriedInitialization = false;
-	let checkCount = 0;
+log("Initializing...");
 
-	const checkAndInitialize = () => {
-		checkCount++;
+if (PlayState.playing) {
+	isSourceConnected = connectAudio();
+}
 
-		// Only try to initialize once when music starts playing
-		if (PlayState.playing && !hasTriedInitialization) {
-			hasTriedInitialization = true;
-			log("Initializing audio visualizer...");
+animationId = requestAnimationFrame(animate);
 
-			// Initialize immediately - no delay (after audio starts playing ofc)
-			initializeAudioVisualizer().then(() => {
-				if (audioContext && analyser) {
-					log("Audio visualizer ready!");
-				} else {
-					hasTriedInitialization = false; // Allow retry if failed
-				}
-			});
-		} else if (!PlayState.playing && hasTriedInitialization) {
-			// Reset try flag when music stops so it can try again next time (otherwise it explode)
-			hasTriedInitialization = false;
-		}
+// Cleanup
 
-		// Keep animation running regardless of play state
-		if (!animationId) {
-			animate();
-		}
-	};
-
-	// Start with fast checking, then slow down
-	const fastInterval = setInterval(() => {
-		checkAndInitialize();
-		if (checkCount > 10) {
-			// After 10 quick checks, switch to slower
-			clearInterval(fastInterval);
-			const slowInterval = setInterval(checkAndInitialize, 2000);
-			unloads.add(() => clearInterval(slowInterval));
-		}
-	}, 200); // Check every 200ms initially
-
-	unloads.add(() => clearInterval(fastInterval));
-
-	// Immediate first check
-	checkAndInitialize();
-};
-
-// Initialize the plugin
-const initialize = (): void => {
-	log("Audio Visualizer plugin initializing...");
-
-	// Start immediately - DOM should be ready by plugin load
-	setTimeout(() => {
-		log("Starting visualizer...");
-		// Create UI immediately so wave effect shows
-		createVisualizerUI();
-		// Start animation loop immediately
-		animate();
-		// Also observe play state for audio detection
-		observePlayState();
-	}, 100); // Minimal delay to ensure DOM is ready
-};
-
-// Complete cleanup function for plugin unload
-const completeCleanup = (): void => {
-	log("Complete cleanup - plugin unloading");
+unloads.add(() => {
+	log("Plugin unloading");
 
 	if (animationId) {
 		cancelAnimationFrame(animationId);
 		animationId = null;
 	}
 
-	removeVisualizerUI();
+	clearSlot(navSlot);
+	clearSlot(npSlot);
 
-	// Fully disconnect and reset everything
-	if (audioSource) {
-		try {
-			audioSource.disconnect();
-			log("Disconnected audio source completely");
-		} catch (e) {
-			log("Audio source already disconnected");
-		}
-	}
+	try { audioSource?.disconnect(); } catch {}
 
-	// Close audio context completely on plugin unload
 	if (audioContext && audioContext.state !== "closed") {
 		audioContext.close();
-		log("Closed AudioContext");
 	}
 
-	// Reset all references
 	audioContext = null;
 	analyser = null;
 	audioSource = null;
 	dataArray = null;
-	currentAudioElement = null;
 	isSourceConnected = false;
-};
-
-// Register cleanup
-unloads.add(completeCleanup);
-
-// Start initialization
-initialize();
+});
