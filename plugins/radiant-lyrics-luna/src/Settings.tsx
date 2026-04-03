@@ -12,6 +12,7 @@ declare global {
 		updateRadiantLyricsGlobalBackground?: () => void;
 		updateRadiantLyricsNowPlayingBackground?: () => void;
 		updateQualityProgressColor?: () => void;
+		updateIntegratedSeekBar?: () => void;
 		updateLyricsStyle?: () => void;
 		updateLyricsStyleSetting?: (value: number) => void;
 		updateRomanizeLyrics?: () => void;
@@ -21,19 +22,32 @@ declare global {
 
 export const settings = await ReactiveStore.getPluginStorage("RadiantLyrics", {
 	lyricsGlowEnabled: true,
+	textGlow: 20,
+	lyricsStyle: 2,
+	lyricsFontSize: 100,
+	blurInactive: true,
+	contextAwareLyrics: true,
+	bubbledLyrics: true,
+	romanizeLyrics: false,
+	stickyLyrics: false,
+	syllableStyle: 0, // MARKER: Syllable animations SETTINGS (WIP coming soon)
+	syllableLogging: false,
 	hideUIEnabled: true,
 	playerBarVisible: false,
 	qualityProgressColor: true,
+	integratedSeekBar: true,
 	floatingPlayerBar: true,
+	playerBarRadius: 5,
+	playerBarSpacing: 10,
+	playerBarBlur: true,
+	playerBarBlurAmount: 15,
+	playerBarTintEnabled: true,
 	playerBarTint: 5,
 	playerBarTintColor: "#000000" as string,
 	playerBarTintCustomColors: [] as string[],
-	playerBarRadius: 5,
-	playerBarSpacing: 10,
 	CoverEverywhere: true,
 	performanceMode: false,
 	spinningArt: true,
-	textGlow: 20,
 	backgroundScale: 15,
 	backgroundRadius: 25,
 	backgroundContrast: 120,
@@ -41,16 +55,6 @@ export const settings = await ReactiveStore.getPluginStorage("RadiantLyrics", {
 	backgroundBrightness: 40,
 	spinSpeed: 45,
 	settingsAffectNowPlaying: true,
-	stickyLyrics: false,
-	stickyLyricsIcon: "sparkle" as string,
-	lyricsStyle: 2,
-	syllableStyle: 0, // MARKER: Syllable animations SETTINGS (WIP coming soon)
-	contextAwareLyrics: true,
-	blurInactive: true,
-	bubbledLyrics: true,
-	syllableLogging: false,
-	lyricsFontSize: 100,
-	romanizeLyrics: false,
 });
 
 export const Settings = () => {
@@ -92,11 +96,20 @@ export const Settings = () => {
 	const [floatingPlayerBar, setFloatingPlayerBar] = React.useState(
 		settings.floatingPlayerBar,
 	);
+	const [playerBarTintEnabled, setPlayerBarTintEnabled] = React.useState(
+		settings.playerBarTintEnabled,
+	);
 	const [playerBarTint, setPlayerBarTint] = React.useState(
 		settings.playerBarTint,
 	);
 	const [playerBarTintColor, setPlayerBarTintColor] = React.useState(
 		settings.playerBarTintColor,
+	);
+	const [playerBarBlur, setPlayerBarBlur] = React.useState(
+		settings.playerBarBlur,
+	);
+	const [playerBarBlurAmount, setPlayerBarBlurAmount] = React.useState(
+		settings.playerBarBlurAmount,
 	);
 	const [playerBarRadius, setPlayerBarRadius] = React.useState(
 		settings.playerBarRadius,
@@ -144,6 +157,9 @@ export const Settings = () => {
 	);
 	const [qualityProgressColor, setQualityProgressColor] = React.useState(
 		settings.qualityProgressColor,
+	);
+	const [integratedSeekBar, setIntegratedSeekBar] = React.useState(
+		settings.integratedSeekBar,
 	);
 	const [romanizeLyrics, setRomanizeLyrics] = React.useState(
 		settings.romanizeLyrics,
@@ -329,6 +345,18 @@ export const Settings = () => {
 				}}
 			/>
 			<AnySwitch
+				title="Integrated Seek Bar"
+				desc="Move the seekbar to the top border of the player bar (inspired by Amethyst)"
+				checked={integratedSeekBar}
+				onChange={(_: unknown, checked: boolean) => {
+					settings.integratedSeekBar = checked;
+					setIntegratedSeekBar(checked);
+					if (window.updateIntegratedSeekBar) {
+						window.updateIntegratedSeekBar();
+					}
+				}}
+			/>
+			<AnySwitch
 				title="Floating Player Bar"
 				desc="When disabled, the player bar becomes a square edge-to-edge bar"
 				checked={floatingPlayerBar}
@@ -369,6 +397,31 @@ export const Settings = () => {
 						}}
 					/>
 				</>
+			)}
+			<AnySwitch
+				title="Player Bar Blur"
+				desc="Enable backdrop blur effect on the player bar"
+				checked={playerBarBlur}
+				onChange={(_: unknown, checked: boolean) => {
+					settings.playerBarBlur = checked;
+					setPlayerBarBlur(checked);
+					window.updateRadiantLyricsPlayerBarTint?.();
+				}}
+			/>
+			{playerBarBlur && (
+				<LunaNumberSetting
+					title="Player Bar Blur Amount"
+					desc="Adjust the backdrop blur intensity (0-100, default: 26)"
+					min={0}
+					max={100}
+					step={1}
+					value={playerBarBlurAmount}
+					onNumber={(value: number) => {
+						settings.playerBarBlurAmount = value;
+						setPlayerBarBlurAmount(value);
+						window.updateRadiantLyricsPlayerBarTint?.();
+					}}
+				/>
 			)}
 			{(() => {
 				const closeTintColorPicker = () => {
@@ -537,25 +590,109 @@ export const Settings = () => {
 										transition: "all 0.2s ease",
 									}}
 								>
-									<div
-										style={{
-											marginBottom: "12px",
-											color: "#fff",
-											fontWeight: "bold",
-											fontSize: "14px",
-										}}
-									>
-										Choose Tint Color
-									</div>
+								<div
+									style={{
+										marginBottom: "12px",
+										color: "#fff",
+										fontWeight: "bold",
+										fontSize: "14px",
+									}}
+								>
+									Choose Tint Color
+								</div>
 
-									<div
+								{/* Enable/Disable tint toggle */}
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										justifyContent: "space-between",
+										marginBottom: "14px",
+										padding: "8px 10px",
+										borderRadius: "8px",
+										background: "rgba(255,255,255,0.06)",
+									}}
+								>
+									<span
 										style={{
-											display: "grid",
-											gridTemplateColumns: "repeat(7, 1fr)",
-											gap: "8px",
-											marginBottom: "16px",
+											color: "rgba(255,255,255,0.8)",
+											fontSize: "12px",
+											fontWeight: 600,
 										}}
 									>
+										Enable Player Bar Tint
+									</span>
+									<label
+										style={{
+											position: "relative",
+											display: "inline-block",
+											width: "36px",
+											height: "20px",
+											flexShrink: 0,
+										}}
+									>
+										<input
+											type="checkbox"
+											checked={playerBarTintEnabled}
+											onChange={(e) => {
+												const checked = e.target.checked;
+												settings.playerBarTintEnabled = checked;
+												setPlayerBarTintEnabled(checked);
+												window.updateRadiantLyricsPlayerBarTint?.();
+											}}
+											style={{
+												opacity: 0,
+												width: 0,
+												height: 0,
+												position: "absolute",
+											}}
+										/>
+										<span
+											style={{
+												position: "absolute",
+												cursor: "pointer",
+												top: 0,
+												left: 0,
+												right: 0,
+												bottom: 0,
+												backgroundColor: playerBarTintEnabled
+													? "rgba(255,255,255,0.8)"
+													: "rgba(255,255,255,0.15)",
+												transition: "0.25s",
+												borderRadius: "20px",
+											}}
+										>
+											<span
+												style={{
+													position: "absolute",
+													content: '""',
+													height: "16px",
+													width: "16px",
+													left: playerBarTintEnabled ? "18px" : "2px",
+													bottom: "2px",
+													backgroundColor: playerBarTintEnabled
+														? "rgb(20,20,20)"
+														: "rgba(255,255,255,0.5)",
+													transition: "0.25s",
+													borderRadius: "50%",
+												}}
+											/>
+										</span>
+									</label>
+								</div>
+
+								<div
+									style={{
+										display: "grid",
+										gridTemplateColumns: "repeat(7, 1fr)",
+										gap: "8px",
+										marginBottom: "16px",
+										opacity: playerBarTintEnabled ? 1 : 0.3,
+										pointerEvents: playerBarTintEnabled ? "auto" : "none",
+										filter: playerBarTintEnabled ? "none" : "grayscale(1)",
+										transition: "all 0.25s ease",
+									}}
+								>
 										{allTintColors.map((color, index) => {
 											const isCustomColor = tintCustomColors.includes(color);
 											const isHovered = tintHoveredColorIndex === index;
@@ -626,16 +763,24 @@ export const Settings = () => {
 										})}
 									</div>
 
-									<div style={{ marginBottom: "12px" }}>
-										<div
-											style={{
-												color: "rgba(255,255,255,0.7)",
-												fontSize: "12px",
-												marginBottom: "6px",
-											}}
-										>
-											Add Custom Color
-										</div>
+								<div
+									style={{
+										marginBottom: "12px",
+										opacity: playerBarTintEnabled ? 1 : 0.3,
+										pointerEvents: playerBarTintEnabled ? "auto" : "none",
+										filter: playerBarTintEnabled ? "none" : "grayscale(1)",
+										transition: "all 0.25s ease",
+									}}
+								>
+									<div
+										style={{
+											color: "rgba(255,255,255,0.7)",
+											fontSize: "12px",
+											marginBottom: "6px",
+										}}
+									>
+										Add Custom Color
+									</div>
 										<div
 											style={{
 												display: "flex",

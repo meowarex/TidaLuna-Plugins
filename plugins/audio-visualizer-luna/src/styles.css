@@ -1,37 +1,31 @@
-/* Audio Visualizer CSS */
-
 .audio-visualizer-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.2);
+	border-radius: 8px;
+	padding: 4px;
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
 	transition: all 0.3s ease-in-out;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-	border: 1px solid rgba(255, 255, 255, 0.1);
+	border: 1px solid rgba(255, 105, 180, 0.15);
 	animation: av-fadeIn 0.5s ease-out;
 }
 
 .audio-visualizer-container:hover {
 	transform: scale(1.02);
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+	box-shadow: 0 4px 12px rgba(255, 105, 180, 0.2);
+	border-color: rgba(255, 105, 180, 0.3);
 }
 
 .audio-visualizer-container canvas {
 	display: block;
-	transition: all 0.3s ease-in-out;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-	.audio-visualizer-container {
-		margin: 4px;
-		padding: 2px;
-	}
-
-	.audio-visualizer-container canvas {
-		max-width: 150px;
-		max-height: 30px;
-	}
+	border-radius: 4px;
 }
 
 .audio-visualizer-container.active {
-	box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+	box-shadow: 0 0 20px rgba(255, 105, 180, 0.3);
 }
 
 @keyframes av-fadeIn {
@@ -48,3 +42,29 @@
 [data-type="search-field"] {
 	min-width: 220px !important;
 }
+
+/* Slot group layout */
+.av-slot-group {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+/* Left/Right group spacing */
+.av-slot-group[data-position="left"] {
+	margin-right: 12px;
+}
+
+.av-slot-group[data-position="right"] {
+	margin-left: 12px;
+}
+
+/* Player Bar: LEFT inside trackInfo, RIGHT inside utilityContainer */
+.av-slot-group[data-zone="playerBar"][data-position="left"] {
+	margin-left: 8px;
+}
+.av-slot-group[data-zone="playerBar"][data-position="right"] {
+	margin-right: 8px;
+}
+
