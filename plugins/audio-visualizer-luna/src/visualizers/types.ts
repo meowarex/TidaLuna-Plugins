@@ -26,7 +26,7 @@ export const VISUALIZER_DIMENSIONS: Record<VisualizerType, VisualizerDimensions>
 	"spectrum-line": { width: 200, height: 40 },
 	"spectrum-bars": { width: 200, height: 40 },
 	oscilloscope: { width: 200, height: 40 },
-	vectorscope: { width: 60, height: 60 },
+	vectorscope: { width: 100, height: 40 },
 	"loudness-meter": { width: 160, height: 40 },
 	none: { width: 0, height: 0 },
 };
@@ -80,8 +80,9 @@ export const POSITION_LABELS: Record<PositionId, string> = {
 	right: "Right",
 };
 
-export const MINI_SUPPORTED = new Set<VisualizerType>(["oscilloscope"]);
+export const MINI_SUPPORTED = new Set<VisualizerType>(["oscilloscope", "vectorscope"]);
 
 export const MINI_DIMENSIONS: Partial<Record<VisualizerType, VisualizerDimensions>> = {
 	oscilloscope: { width: 80, height: 60 },
+	vectorscope: { width: 72, height: 40 },
 };

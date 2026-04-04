@@ -346,7 +346,7 @@ export const Settings = () => {
 			/>
 			<AnySwitch
 				title="Integrated Seek Bar"
-				desc="Move the seekbar to the top border of the player bar (inspired by Amethyst)"
+				desc="Move the seekbar to the top border of the player bar"
 				checked={integratedSeekBar}
 				onChange={(_: unknown, checked: boolean) => {
 					settings.integratedSeekBar = checked;

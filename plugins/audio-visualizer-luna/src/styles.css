@@ -68,3 +68,66 @@
 	margin-right: 8px;
 }
 
+/* Grouped slots: merge active containers into one shared box */
+.av-slot-group.av-grouped {
+	gap: 0;
+	background: rgba(0, 0, 0, 0.2);
+	border-radius: 8px;
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+	border: 1px solid rgba(255, 105, 180, 0.15);
+	animation: av-fadeIn 0.5s ease-out;
+	transition: all 0.3s ease-in-out;
+}
+.av-slot-group.av-grouped:hover {
+	transform: scale(1.02);
+	box-shadow: 0 4px 12px rgba(255, 105, 180, 0.2);
+	border-color: rgba(255, 105, 180, 0.3);
+}
+.av-slot-group.av-grouped > .audio-visualizer-container {
+	background: none;
+	border: none;
+	border-radius: 0;
+	backdrop-filter: none;
+	-webkit-backdrop-filter: none;
+	box-shadow: none;
+	animation: none;
+}
+.av-slot-group.av-grouped > .audio-visualizer-container:hover {
+	transform: none;
+	box-shadow: none;
+}
+
+/* Chromeless: no fill, blur, or shadow; border kept */
+body.av-chromeless .audio-visualizer-container {
+	background: transparent;
+	backdrop-filter: none;
+	-webkit-backdrop-filter: none;
+	box-shadow: none;
+	border: 1px solid rgba(255, 105, 180, 0.15);
+	animation: none;
+	transition: border-color 0.3s ease-in-out;
+}
+body.av-chromeless .audio-visualizer-container:hover {
+	transform: none;
+	box-shadow: none;
+	border-color: rgba(255, 105, 180, 0.3);
+}
+body.av-chromeless .audio-visualizer-container.active {
+	box-shadow: none;
+}
+body.av-chromeless .av-slot-group.av-grouped {
+	background: transparent;
+	backdrop-filter: none;
+	-webkit-backdrop-filter: none;
+	box-shadow: none;
+	border: 1px solid rgba(255, 105, 180, 0.15);
+	animation: none;
+	transition: border-color 0.3s ease-in-out;
+}
+body.av-chromeless .av-slot-group.av-grouped:hover {
+	transform: none;
+	box-shadow: none;
+	border-color: rgba(255, 105, 180, 0.3);
+}

@@ -132,9 +132,15 @@ const syncGroupHeights = (group: SlotGroup): void => {
 };
 
 const updateGroupVisibility = (group: SlotGroup): void => {
-	const allNone = group.slots.every(s => s.currentType === "none");
+	const activeCount = group.slots.filter(s => s.currentType !== "none").length;
+	const allNone = activeCount === 0;
 	group.groupContainer.style.display = allNone ? "none" : "flex";
 	if (!allNone) syncGroupHeights(group);
+
+	group.groupContainer.classList.toggle(
+		"av-grouped",
+		settings.groupedSlots && activeCount >= 2,
+	);
 
 	if (group === groups.get("topNav-left") && navArrowsEl) {
 		navArrowsEl.style.marginRight = allNone ? "" : "0";
@@ -397,6 +403,14 @@ const generateIdleData = (): AudioData => {
 let animationId: number | null = null;
 const lastSlotTypes = new Map<SlotKey, VisualizerType>();
 const lastMiniState = new Map<SlotKey, boolean>();
+let lastGrouped = settings.groupedSlots;
+let lastChromeless = settings.transparentContainers;
+
+const syncChromelessClass = (): void => {
+	document.body.classList.toggle("av-chromeless", !!settings.transparentContainers);
+};
+
+syncChromelessClass();
 
 for (const key of ALL_SLOT_KEYS) {
 	lastSlotTypes.set(key, getSlot(key));
@@ -425,6 +439,18 @@ const animate = (): void => {
 			}
 		}
 		if (changed) updateGroupVisibility(group);
+	}
+
+	const grouped = settings.groupedSlots;
+	if (grouped !== lastGrouped) {
+		for (const group of groups.values()) updateGroupVisibility(group);
+		lastGrouped = grouped;
+	}
+
+	const chromeless = !!settings.transparentContainers;
+	if (chromeless !== lastChromeless) {
+		syncChromelessClass();
+		lastChromeless = chromeless;
 	}
 
 	const currentReactivity = settings.reactivity ?? 30;
@@ -479,6 +505,8 @@ animationId = requestAnimationFrame(animate);
 unloads.add(() => {
 	log("Plugin unloading");
 	clearRetry();
+
+	document.body.classList.remove("av-chromeless");
 
 	if (navArrowsEl) {
 		navArrowsEl.style.marginRight = "";

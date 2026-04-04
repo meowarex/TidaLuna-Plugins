@@ -52,6 +52,8 @@ export const settings = await ReactiveStore.getPluginStorage(
 		opacityFalloff: 0.5,
 		lissajous: false,
 		scrollingOscilloscope: false,
+		groupedSlots: false,
+		transparentContainers: false,
 		miniSlots: [] as string[],
 		customColors: [] as string[],
 	},
@@ -85,6 +87,11 @@ export const Settings = () => {
 	const [lissajous, setLissajous] = React.useState(settings.lissajous);
 	const [scrollingOscilloscope, setScrollingOscilloscope] = React.useState(settings.scrollingOscilloscope);
 
+
+	const [groupedSlots, setGroupedSlots] = React.useState(settings.groupedSlots);
+	const [transparentContainers, setTransparentContainers] = React.useState(
+		settings.transparentContainers,
+	);
 
 	const [showColorPicker, setShowColorPicker] = React.useState(false);
 	const [isColorAnimIn, setIsColorAnimIn] = React.useState(false);
@@ -285,6 +292,26 @@ export const Settings = () => {
 					>Configure Slots</button>
 				</div>
 			</div>
+
+			<AnySwitch
+				title="Grouped Slots"
+				desc="Active slots in the same position share a single container"
+				checked={groupedSlots}
+				onChange={(_: unknown, checked: boolean) => {
+					setGroupedSlots(checked);
+					settings.groupedSlots = checked;
+				}}
+			/>
+
+			<AnySwitch
+				title="Transparent containers"
+				desc="Remove panel background, blur and shadow"
+				checked={transparentContainers}
+				onChange={(_: unknown, checked: boolean) => {
+					setTransparentContainers(checked);
+					settings.transparentContainers = checked;
+				}}
+			/>
 
 			{/* Color picker modal */}
 			{shouldRenderColor && (
