@@ -954,5 +954,10 @@ body.rl-owns-lyric-scroll [class*="_syncButtonContainer_"] {
 
 /* MARKER: Now Playing artwork centering */
 [class*="_artworkWrapper_"] {
-	padding-bottom: var(--rl-player-bar-inset, 98px);
-}
+	padding-bottom: calc(var(--rl-player-bar-inset, 98px) * .4 );}
+
+/*removes now-playing artwork border*/ 
+._artworkTilt_1c6d5cc:after{box-shadow: none;}
+
+/*makes glare effect's border-radius match artwork*/ 
+._glare_fdbaeab{border-radius: 10px;} 
