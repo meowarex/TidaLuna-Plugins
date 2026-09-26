@@ -20,6 +20,7 @@ import {
 	romanizeLyrics as romanizeLyricsApi,
 } from "./api";
 import { KawarpLayer } from "./backdrop";
+import { AnimatedArtworkLayer, ART_TILE_SELECTOR } from "./artwork";
 import { Settings, settings } from "./Settings";
 
 import backdropStylesCss from "file://backdrop-styles.css?minify";
@@ -731,6 +732,17 @@ const setLayerRunning = (
 	if (now - pauseHiddenSince[slot] >= PAUSE_GRACE_MS) layer.setPaused(true);
 };
 
+// Cached so the 200ms tick skips a document-wide query.
+let cachedNowPlayingPanel: HTMLElement | null = null;
+
+// On screen, not just mounted.
+const artPanelVisible = (panel: HTMLElement): boolean => {
+	if (typeof panel.checkVisibility === "function") {
+		return panel.checkVisibility({ checkVisibilityCSS: true });
+	}
+	return getComputedStyle(panel).visibility !== "hidden";
+};
+
 const syncBackdropActivity = (): void => {
 	// Stock backdrop keeps current (no shader loop)
 	if (stockContainer) applyStockCoverEverywhere();
@@ -763,6 +775,18 @@ const syncBackdropActivity = (): void => {
 			(global?.isVisible() ?? false),
 		now,
 	);
+
+	// Only runs while the Now Playing view is visible. Guarded: this ticks 5x/second.
+	if (animatedArtworkLayer) {
+		if (!cachedNowPlayingPanel?.isConnected) {
+			cachedNowPlayingPanel = document.querySelector(
+				'[class*="_nowPlayingContainer"]',
+			) as HTMLElement | null;
+		}
+		animatedArtworkLayer.setNowPlayingVisible(
+			!!cachedNowPlayingPanel && artPanelVisible(cachedNowPlayingPanel),
+		);
+	}
 };
 
 /** cover art @ resolution worth sampling */
@@ -1019,6 +1043,55 @@ const updateRadiantLyricsBackdrop = function (): void {
 	}
 };
 
+// MARKER: Animated Artwork (Apple Music live artwork on the artwork tile)
+let animatedArtworkLayer: AnimatedArtworkLayer | null = null;
+let lastArtworkKey: string | null = null;
+let lastArtworkTile: Element | null = null;
+
+/** Animated art is an album asset, so key by album and skips within one are free. */
+const artworkKey = (t: TrackInfo): string =>
+	t.album && t.album.trim() !== ""
+		? `${t.artist}\u0000${t.album.trim()}`
+		: `${t.artist}\u0000\u0000${t.title}`;
+
+// Load + show animated art for the current (or given) track
+const updateAnimatedArtwork = async (
+	target?: TrackInfo | null,
+	rehost = false,
+): Promise<void> => {
+	if (!settings.animatedArtwork) {
+		animatedArtworkLayer?.dispose();
+		animatedArtworkLayer = null;
+		lastArtworkKey = null;
+		lastArtworkTile = null;
+		return;
+	}
+	if (!animatedArtworkLayer) animatedArtworkLayer = new AnimatedArtworkLayer();
+	target ??= await getTrackInfo();
+	if (!target) return;
+	// Re-check after the await; another caller may have claimed this already.
+	if (!settings.animatedArtwork || !animatedArtworkLayer) return;
+	const key = artworkKey(target);
+	if (key === lastArtworkKey) {
+		// Same artwork, but the view may have remounted underneath us.
+		if (rehost) animatedArtworkLayer.reattach();
+		return;
+	}
+	lastArtworkKey = key;
+	const done = await animatedArtworkLayer.load(
+		key,
+		target.title,
+		target.artist,
+		target.album,
+	);
+	// No tile on screen yet; clear the key so the tile observer retries.
+	if (!done && lastArtworkKey === key) lastArtworkKey = null;
+};
+
+(window as any).updateAnimatedArtwork = updateAnimatedArtwork;
+(window as any).updateAnimatedArtworkRate = (): void =>
+	animatedArtworkLayer?.refresh();
+
 // Make these functions available globally so Settings can call them
 (window as any).updateRadiantLyricsStyles = updateRadiantLyricsStyles;
 (window as any).updateRadiantLyricsBackdrop = updateRadiantLyricsBackdrop;
@@ -1053,8 +1126,14 @@ updateRadiantLyricsTextGlow();
 // Init global background
 updateCoverArtBackground(1);
 
+// Deferred: getTrackInfo() is declared further down and would be uninitialised.
+queueMicrotask(() => void updateAnimatedArtwork());
+
 // Cleanups
 unloads.add(() => {
+	animatedArtworkLayer?.dispose();
+	animatedArtworkLayer = null;
+	cachedNowPlayingPanel = null;
 	cleanUpDynamicArt();
 	cleanUpStockCoverEverywhere();
 	document.body.classList.remove("rl-backdrop-active");
@@ -1390,6 +1469,15 @@ function setupLyricsMenuObserver(): void {
 		}
 	});
 
+	// The tile only exists once the view is open, so load from here too. This fires
+	// on nearly every DOM change, so bail synchronously unless the tile is new.
+	observe<HTMLElement>(unloads, ART_TILE_SELECTOR, (tile) => {
+		// Identity only; also stops us reacting to our own <video> insertion.
+		if (tile === lastArtworkTile) return;
+		lastArtworkTile = tile;
+		void updateAnimatedArtwork(undefined, true);
+	});
+
 	// Apply word lyrics when lyrics container appears or reappears
 	observe<HTMLElement>(unloads, '[data-test="now-playing-lyrics"]', () => {
 		if (isTrackChangeRunning) return;
@@ -1424,6 +1512,7 @@ interface TrackInfo {
 	title: string;
 	artist: string;
 	isrc?: string;
+	album?: string;
 }
 
 interface SyntheticNativeLyricsState {
@@ -2083,8 +2172,9 @@ const trackInfoFromReduxProductId = (productId: string): TrackInfo | null => {
 	const title = String(attr.title ?? "");
 	const artist = String(attr.artist?.name ?? getPrimaryArtistName(attr.artists) ?? "");
 	const isrc = attr.isrc ?? undefined;
+	const album = attr.album?.title ?? undefined;
 	if (!title || !artist) return null;
-	return { trackId: productId, title, artist, isrc };
+	return { trackId: productId, title, artist, isrc, album };
 };
 
 // MARKER: Playback clock
@@ -2301,9 +2391,10 @@ const getTrackInfo = async (): Promise<TrackInfo | null> => {
 			mi.tidalItem.artist?.name ?? getPrimaryArtistName(mi.tidalItem.artists) ?? ""; // REMIX Detection
 		const isrc = mi.tidalItem.isrc ?? undefined;
 		const trackId = String(mi.tidalItem.id ?? PlayState.playbackContext?.actualProductId ?? "");
+		const album = mi.tidalItem.album?.title ?? undefined;
 
 		if (!baseTitle || !artist || !trackId) return null;
-		return { trackId, title, artist, isrc };
+		return { trackId, title, artist, isrc, album };
 	}
 
 	const state = getReduxState();
@@ -4303,6 +4394,7 @@ function setupHeaderObserver(): void {
 // Apply seeker color on track change
 onGlobalTrackChange(() => {
 	updateCoverArtBackground();
+	void updateAnimatedArtwork();
 	if (settings.qualityProgressColor) applyQualityProgressColor();
 });
 

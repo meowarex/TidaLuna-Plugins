@@ -837,6 +837,23 @@ body.rl-owns-lyric-scroll [class*="_syncButtonContainer_"] {
 	border-radius: 10px !important;
 }
 
+/* Animated artwork (Apple Music live art) overlays the tile */
+.rl-animated-art {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: inherit;
+	z-index: 1;
+	pointer-events: none;
+	transition: opacity 0.3s ease;
+	opacity: 0;
+}
+.rl-animated-art-visible {
+	opacity: 1;
+}
+
 /* Hide the Overlay Scrollbar (people just use mouse scroll) */
 .os-scrollbar {
 	display: none !important;

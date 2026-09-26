@@ -202,6 +202,104 @@ export async function fetchLyrics(
 	return null;
 }
 
+export interface AnimatedArtwork {
+	url: string;
+	url_tall: string;
+}
+
+function artworkSearchUrl(
+	title: string,
+	artist: string,
+	album?: string,
+): string {
+	let q = `title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`;
+	// Omit the album param entirely when absent (a literal "undefined" string makes the endpoint miss)
+	if (album && album.trim() !== "") q += `&album=${encodeURIComponent(album.trim())}`;
+	return `https://ama.trainswift.net/api/v1/artwork/search?${q}`;
+}
+
+// Cached including misses; most tracks have none and the answer never changes.
+const animatedArtworkCache = new Map<string, AnimatedArtwork | null>();
+const ARTWORK_CACHE_MAX = 200;
+
+export async function fetchAnimatedArtwork(
+	title: string,
+	artist: string,
+	album?: string,
+	signal?: AbortSignal,
+): Promise<AnimatedArtwork | null> {
+	// Keyed by album, matching artworkKey() in index.ts.
+	const cacheKey =
+		album && album.trim() !== ""
+			? `${artist}\u0000${album.trim()}`
+			: `${artist}\u0000\u0000${title}`;
+	if (animatedArtworkCache.has(cacheKey)) {
+		return animatedArtworkCache.get(cacheKey) ?? null;
+	}
+
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), 10000);
+	const onAbort = () => controller.abort();
+	signal?.addEventListener("abort", onAbort, { once: true });
+	if (signal?.aborted) controller.abort();
+	const tryFetch = async (url: string): Promise<AnimatedArtwork | null> => {
+		try {
+			sylTrace(`AM Artwork: fetching ${url}`);
+			const res = await fetch(url, { signal: controller.signal });
+			if (!res.ok) {
+				trace.log(`AM Artwork: fetch failed ${res.status} | ${url}`);
+				return null;
+			}
+			const data = (await res.json()) as {
+				url?: string;
+				url_tall?: string;
+				message?: string;
+			};
+			if (data.url && data.url_tall) {
+				return { url: data.url, url_tall: data.url_tall };
+			}
+			trace.log(`AM Artwork: none found | ${url}`);
+			return null;
+		} catch (err) {
+			if (err instanceof DOMException && err.name === "AbortError") {
+				trace.log(`AM Artwork: request timed out | ${url}`);
+			} else {
+				trace.log(`AM Artwork: request error | ${url} | ${err}`);
+			}
+			return null;
+		}
+	};
+
+	const remember = (result: AnimatedArtwork | null): AnimatedArtwork | null => {
+		// A cancelled attempt says nothing about the track.
+		if (controller.signal.aborted) return result;
+		if (animatedArtworkCache.size >= ARTWORK_CACHE_MAX) {
+			const oldest = animatedArtworkCache.keys().next().value;
+			if (oldest !== undefined) animatedArtworkCache.delete(oldest);
+		}
+		animatedArtworkCache.set(cacheKey, result);
+		return result;
+	};
+
+	try {
+		// Exact album first; on a miss retry once without the album (server-side disambiguation is imperfect)
+		const withAlbum = await tryFetch(
+			artworkSearchUrl(title, artist, album),
+		);
+		if (withAlbum) return remember(withAlbum);
+		if (album && album.trim() !== "") {
+			const withoutAlbum = await tryFetch(
+				artworkSearchUrl(title, artist),
+			);
+			if (withoutAlbum) return remember(withoutAlbum);
+		}
+		return remember(null);
+	} finally {
+		clearTimeout(timeout);
+		signal?.removeEventListener("abort", onAbort);
+	}
+}
+
 export async function flushLyrics(track: {
 	title: string;
 	artist: string;

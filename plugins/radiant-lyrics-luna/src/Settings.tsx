@@ -8,6 +8,8 @@ declare global {
 		updateRadiantLyricsTextGlow?: () => void;
 		updateRadiantLyricsPlayerBarTint?: () => void;
 		updateRadiantLyricsBackdrop?: () => void;
+		updateAnimatedArtwork?: (target?: unknown) => void;
+		updateAnimatedArtworkRate?: () => void;
 		updateQualityProgressColor?: () => void;
 		updateIntegratedSeekBar?: () => void;
 		updateLyricsStyle?: () => void;
@@ -48,6 +50,8 @@ export const settings = await ReactiveStore.getPluginStorage("RadiantLyrics", {
 	playerBarTintCustomColors: [] as string[],
 	// Master switch
 	backdropEnabled: true,
+	animatedArtwork: true,
+	animatedArtworkFps: 25,
 	backdropStyle: 0,
 	backdropPlaybackReactive: true,
 	CoverEverywhere: true,
@@ -81,6 +85,12 @@ export const Settings = () => {
 	);
 	const [backdropEnabled, setBackdropEnabled] = React.useState(
 		settings.backdropEnabled,
+	);
+	const [animatedArtwork, setAnimatedArtwork] = React.useState(
+		settings.animatedArtwork,
+	);
+	const [animatedArtworkFps, setAnimatedArtworkFps] = React.useState(
+		settings.animatedArtworkFps,
 	);
 	const [backdropStyle, setBackdropStyle] = React.useState(
 		settings.backdropStyle,
@@ -915,6 +925,31 @@ export const Settings = () => {
 					refreshBackdrop();
 				}}
 			/>
+			<AnySwitch
+				title="Animated Artwork"
+				desc="Show Apple Music animated artwork over the artwork tile in the Now Playing view"
+				checked={animatedArtwork}
+				onChange={(_: unknown, checked: boolean) => {
+					settings.animatedArtwork = checked;
+					setAnimatedArtwork(checked);
+					window.updateAnimatedArtwork?.();
+				}}
+			/>
+			{animatedArtwork && (
+				<LunaNumberSetting
+					title="Animated Artwork Frame Rate"
+					desc="Frames per second for the animated artwork. Lower is cheaper but choppier; 25 is native speed."
+					min={1}
+					max={25}
+					step={1}
+					value={animatedArtworkFps}
+					onNumber={(value: number) => {
+						settings.animatedArtworkFps = value;
+						setAnimatedArtworkFps(value);
+						window.updateAnimatedArtworkRate?.();
+					}}
+				/>
+			)}
 			{backdropEnabled && (
 				<>
 					<LunaNumberSetting
