@@ -536,14 +536,59 @@ const toggleRadiantLyrics = function (): void {
 
 // Create buttons
 let flushLocked = false;
+let flushSpinning = false;
+
+// Swap the flush button icon between the lyrics-sync glyph and a loading spinner
+const setFlushSpinner = (on: boolean): void => {
+	flushSpinning = on;
+	const btn = document.querySelector(".flush-lyrics-button") as HTMLButtonElement | null;
+	if (!btn) return;
+	const svg = btn.querySelector("svg");
+	if (!svg) return;
+	const svgClass = (svg.getAttribute("class") ?? "")
+		.split(/\s+/)
+		.filter((c) => c && c !== "rl-spinner");
+	if (on) {
+		if (svg.classList.contains("rl-spinner")) return;
+		btn.setAttribute("data-tip", "Loading lyrics…");
+		btn.setAttribute("aria-label", "Loading lyrics…");
+		const spinner = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+		if (svgClass.length) spinner.setAttribute("class", svgClass.join(" "));
+		spinner.classList.add("rl-spinner");
+		spinner.setAttribute("viewBox", "0 0 20 20");
+		spinner.setAttribute("aria-hidden", "true");
+		const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+		circle.setAttribute("cx", "10");
+		circle.setAttribute("cy", "10");
+		circle.setAttribute("r", "8");
+		circle.setAttribute(
+			"style",
+			"fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-dasharray:42 8",
+		);
+		spinner.appendChild(circle);
+		svg.replaceWith(spinner);
+	} else {
+		const spinner = btn.querySelector("svg.rl-spinner");
+		if (!spinner) return;
+		const syncSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+		if (svgClass.length) syncSvg.setAttribute("class", svgClass.join(" "));
+		syncSvg.setAttribute("viewBox", "0 0 20 20");
+		const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+		use.setAttribute("href", "#general__lyrics-sync");
+		syncSvg.appendChild(use);
+		spinner.replaceWith(syncSvg);
+	}
+};
+
 const unlockFlush = (): void => {
 	flushLocked = false;
+	setFlushSpinner(false);
 	const btn = document.querySelector(".flush-lyrics-button") as HTMLButtonElement;
 	if (btn) {
 		btn.disabled = false;
 		btn.style.opacity = "";
 		btn.style.cursor = "";
-		btn.setAttribute("title", "Flush Lyrics");
+		btn.setAttribute("data-tip", "Flush Lyrics");
 		btn.setAttribute("aria-label", "Flush Lyrics");
 	}
 };
@@ -555,15 +600,17 @@ const lockFlush = (): void => {
 		btn.style.opacity = "0.3";
 		btn.style.cursor = "not-allowed";
 	}
+	setFlushSpinner(true);
 };
 const disableFlushNoLyrics = (): void => {
 	flushLocked = true;
+	setFlushSpinner(false);
 	const btn = document.querySelector(".flush-lyrics-button") as HTMLButtonElement;
 	if (btn) {
 		btn.disabled = true;
 		btn.style.opacity = "0.3";
 		btn.style.cursor = "not-allowed";
-		btn.setAttribute("title", "Track has no lyrics");
+		btn.setAttribute("data-tip", "Track has no lyrics");
 		btn.setAttribute("aria-label", "Track has no lyrics");
 	}
 };
@@ -584,9 +631,11 @@ const flushLyrics = async (): Promise<void> => {
 		if (!result.ok) {
 			if (result.notFound) {
 				toast("No lyrics found for this track");
+				unlockFlush();
 				return;
 			}
 			toastErr(`Flush failed (${result.status})`);
+			unlockFlush();
 			return;
 		}
 		const data = result.data;
@@ -602,9 +651,12 @@ const flushLyrics = async (): Promise<void> => {
 			cachedLyricsKey = null;
 			cachedLyricsData = null;
 			onTrackChange();
+		} else {
+			unlockFlush();
 		}
 	} catch (err) {
 		toastErr(`Flush error: ${err instanceof Error ? err.message : String(err)}`);
+		unlockFlush();
 	}
 };
 
@@ -622,7 +674,7 @@ const flushBtn = function (): void {
 	flushButton.removeAttribute("data-test");
 	flushButton.setAttribute("type", "button");
 	flushButton.setAttribute("aria-label", "Flush Lyrics");
-	flushButton.setAttribute("title", "Flush Lyrics");
+	flushButton.setAttribute("data-tip", "Flush Lyrics");
 	flushButton.disabled = true;
 	flushButton.style.opacity = "0.3";
 	flushButton.style.cursor = "not-allowed";
@@ -640,6 +692,12 @@ const flushBtn = function (): void {
 	svgEl.appendChild(useEl);
 	spanWrapper.appendChild(svgEl);
 	flushButton.appendChild(spanWrapper);
+	// Button recreated while lyrics are still loading — show the spinner again
+	if (flushSpinning) {
+		flushButton.setAttribute("data-tip", "Loading lyrics…");
+		flushButton.setAttribute("aria-label", "Loading lyrics…");
+		setFlushSpinner(true);
+	}
 
 	flushButton.onclick = () => flushLyrics();
 
@@ -4009,6 +4067,7 @@ const onTrackChange = async (): Promise<void> => {
 		if (token !== trackChangeToken) return;
 		if (!trackInfo) {
 			trace.log("could not get track info from playback state");
+			setFlushSpinner(false);
 			return;
 		}
 		const nativeHasLyrics = trackHasNativeLyrics(trackInfo.trackId);
