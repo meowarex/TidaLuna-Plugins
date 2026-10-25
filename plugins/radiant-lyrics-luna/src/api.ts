@@ -246,19 +246,22 @@ export interface ArtworkLookup {
 export const artworkTitleKey = (artist: string, title: string): string =>
 	`${artist}\u0000\u0000${title}`;
 
-// ISRC lookup, immune to name mismatches
-const artworkIsrcUrl = (isrc: string): string =>
-	`https://ama.trainswift.net/api/v1/artwork/search?isrc=${encodeURIComponent(isrc)}`;
 
 function artworkSearchUrl(
 	title: string,
 	artist: string,
 	album?: string,
+	isrc?: string,
 ): string {
-	let q = `title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`;
-	// Omit the album param entirely when absent (a literal "undefined" string makes the endpoint miss)
-	if (album && album.trim() !== "") q += `&album=${encodeURIComponent(album.trim())}`;
-	return `https://ama.trainswift.net/api/v1/artwork/search?${q}`;
+	const q = new URLSearchParams();
+	// The endpoint resolves the album from the track title when no album is known;
+	// sending the title as `album` would send it down the album search instead.
+	q.set("title", title);
+	q.set("artist", artist);
+	const albumName = album?.trim();
+	if (albumName) q.set("album", albumName);
+	if (isrc) q.set("isrc", isrc);
+	return `https://animated-cover.appwrite.network?${q}`;
 }
 
 // Cache hits and misses, album key only for album matches
@@ -274,7 +277,6 @@ export async function fetchAnimatedArtwork(
 ): Promise<ArtworkLookup> {
 	const albumName = album?.trim() || "";
 	const albumPresent = albumName !== "";
-	const isrcTrimmed = isrc?.trim() || "";
 	// Album key, or title key without an album
 	const cacheKey = albumPresent
 		? `${artist}\u0000${albumName}`
@@ -291,19 +293,29 @@ export async function fetchAnimatedArtwork(
 	const tryFetch = async (url: string): Promise<AnimatedArtwork | null> => {
 		try {
 			sylTrace(`Animated Artwork: fetching ${url}`);
-			const res = await fetch(url, { signal: controller.signal });
+			const res = await fetch(url, {
+				signal: controller.signal,
+			});
 			if (!res.ok) {
 				trace.log(`Animated Artwork: fetch failed ${res.status} | ${url}`);
 				return null;
 			}
 			const data = (await res.json()) as {
-				url?: string;
-				url_tall?: string;
-				message?: string;
+				album?: string;
+				artist?: string;
+				artwork?: string;
+				isrc?: string;
+				animatedCover?: {
+					square?: string;
+					tall?: string;
+					previewFrame?: string;
+				};
 			};
-			if (data.url && data.url_tall) {
-				return { url: data.url, url_tall: data.url_tall };
-			}
+			// square/tall are optional upstream, so either one alone is usable art
+			const square = data.animatedCover?.square;
+			const tall = data.animatedCover?.tall;
+			if (square) return { url: square, url_tall: tall ?? square };
+			if (tall) return { url: tall, url_tall: tall };
 			trace.log(`Animated Artwork: none found | ${url}`);
 			return null;
 		} catch (err) {
@@ -328,24 +340,12 @@ export async function fetchAnimatedArtwork(
 	};
 
 	try {
-		// ISRC first, misses fall through uncached
-		if (isrcTrimmed) {
-			const byIsrc = await tryFetch(artworkIsrcUrl(isrcTrimmed));
-			if (byIsrc) return { artwork: remember(byIsrc), key: cacheKey };
-		}
-		// Fallback: exact album first; on a miss retry once without the album (server-side disambiguation is imperfect)
-		const withAlbum = await tryFetch(
-			artworkSearchUrl(title, artist, album),
+		// One request: a 404 means this track has no animated art, so retrying with the
+		// title alone would just repeat the lookup and fail the same way.
+		const artwork = await tryFetch(
+			artworkSearchUrl(title, artist, album, isrc),
 		);
-		// Album-matched: cacheable, and its scope is the whole album.
-		if (withAlbum) return { artwork: remember(withAlbum), key: cacheKey };
-		if (albumPresent) {
-			// Title-only result, scope it to this track
-			const artwork = await tryFetch(artworkSearchUrl(title, artist));
-			return { artwork, key: artworkTitleKey(artist, title) };
-		}
-		// No album: the title key is already track-specific.
-		return { artwork: remember(null), key: cacheKey };
+		return { artwork: remember(artwork), key: cacheKey };
 	} finally {
 		clearTimeout(timeout);
 		signal?.removeEventListener("abort", onAbort);
