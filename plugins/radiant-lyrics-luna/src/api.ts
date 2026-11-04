@@ -8,6 +8,9 @@ const sylTrace = (...args: unknown[]) => {
 	if (settings.syllableLogging) trace.log(...args);
 };
 
+// Lyrics API off = nothing leaves the app <3
+const apiOff = (): boolean => !settings.lyricsApi;
+
 export const RL_PLATFORM = "rl";
 
 // Filled in at build (.env or CI secrets)
@@ -173,6 +176,7 @@ export async function fetchLyrics(
 	isrc: string | undefined,
 	romanize: boolean,
 ): Promise<LyricsApiResponse | null> {
+	if (apiOff()) return null;
 	const params = query(title, artist, isrc, { romanize });
 	const apiUrl = `https://api.radiant-lyrics.org/rl-api${params}`;
 	const fallbackUrl = `https://rl-api.kineticsand.net/lyrics${params}`;
@@ -360,6 +364,7 @@ export async function flushLyrics(track: {
 	| { ok: true; data: LyricsApiResponse & { _flush?: string } }
 	| { ok: false; status: number; notFound: boolean }
 > {
+	if (apiOff()) return { ok: false, status: 0, notFound: false };
 	const q = query(track.title, track.artist, track.isrc, {
 		flush: true,
 	});
@@ -535,6 +540,7 @@ async function runSylla(
 	body: unknown,
 	{ onQueue, signal }: SyllaJobOptions = {},
 ): Promise<SyllaResult> {
+	if (apiOff()) return { ok: false, status: 0, detail: "Lyrics API is off" };
 	const controller = new AbortController();
 	let idle: ReturnType<typeof setTimeout> | undefined;
 	const alive = () => {
@@ -678,6 +684,7 @@ async function postRomanize(
 	payload: unknown,
 	timeoutMs: number,
 ): Promise<RomanizedItem[] | null> {
+	if (apiOff()) return null;
 	const romanizeQuery = `?${platformQs}`;
 	const urls: { url: string; useAtomixAuth: boolean }[] = [
 		{

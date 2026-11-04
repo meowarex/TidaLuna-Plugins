@@ -834,7 +834,7 @@ const autoSylla = (
 	mode: "gen" | "align",
 	source?: LyricsApiResponse,
 ): boolean => {
-	if (!settings.allowAI || !settings.radiantAI) return false;
+	if (!settings.lyricsApi || !settings.allowAI || !settings.radiantAI) return false;
 	const tip = mode === "gen" ? "Generating lyrics with Sylla…" : "Generating syllables with Sylla…";
 	if (autoSyllaTrackId === trackInfo.trackId) {
 		// Rebuilt mid job keeps the spinner (failed jobs don't retry)
@@ -1464,7 +1464,7 @@ const LYRICS_MENU_TIP = "Lyrics Options";
 
 // Rainbow sparkle for Sylla Align / Generate lyrics
 const syncAiIndicator = (): void => {
-	const showAi = lyricsIsAiGenerated && settings.allowAI;
+	const showAi = lyricsIsAiGenerated && settings.allowAI && settings.lyricsApi;
 	document.body.classList.toggle("rl-ai-lyrics", showAi);
 	document
 		.querySelector(".rl-lyrics-menu-trigger")
@@ -1705,6 +1705,8 @@ const createLyricsMenu = (): void => {
 		'[data-test="toggle-lyrics"]',
 	) as HTMLElement;
 	if (!lyricsToggle) return;
+	// No API = nothing in the menu works
+	if (!settings.lyricsApi) return;
 	if (lyricsToggle.querySelector(".rl-lyrics-menu-trigger")) return;
 
 	ensureLyricsMenu();
@@ -3046,6 +3048,25 @@ const computeSingerSides = (
 };
 
 // build word/syllable container over tidal spans
+// RTL letters (Hebrew, Arabic, Syriac, Thaana, N'Ko)
+const RTL_LETTER = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+// Joined letters (splitting these into spans breaks them)
+const JOINING_LETTER =
+	/[\u0600-\u074F\u0750-\u077F\u07C0-\u07FF\u0860-\u08FF\u1800-\u18AF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+
+// RTL song = most lines start with RTL letters
+const isRtlSong = (texts: string[]): boolean => {
+	let rtl = 0;
+	let total = 0;
+	for (const text of texts) {
+		const first = text.match(/\p{L}/u)?.[0];
+		if (!first) continue;
+		total++;
+		if (RTL_LETTER.test(first)) rtl++;
+	}
+	return total > 0 && rtl * 2 > total;
+};
+
 const buildWordSpans = (): {
 	lines: LineEntry[];
 } => {
@@ -3081,6 +3102,12 @@ const buildWordSpans = (): {
 		wbwContainer.classList.add("rl-blur-active");
 	if (settings.bubbledLyrics) wbwContainer.classList.add("rl-bubbled");
 	if (lyricsIsAiGenerated) wbwContainer.classList.add("rl-ai");
+	if (
+		isRtlSong(
+			lyricsData.map((l) => (l.syllabus ?? []).map((syl) => romanizedText(syl)).join("")),
+		)
+	)
+		wbwContainer.classList.add("rl-rtl");
 	const effectiveStyle = getLyricsStyle();
 	const allowWordSylStyles = isWordMode();
 	// MARKER: Syllable animations (WIP coming soon)
@@ -3152,6 +3179,9 @@ const buildWordSpans = (): {
 			"justify-content": "initial",
 			"align-items": "initial",
 		});
+
+		// Text picks its own direction (Arabic, Hebrew etc)
+		lineDiv.dir = "auto";
 
 		if (contextAware && singerSides) {
 			const sideClass = singerSides.sides[currentLineIndex];
@@ -3286,9 +3316,17 @@ const buildWordSpans = (): {
 				const targetContainer = groupIsBg ? bgContainer! : mainContainer;
 				const targetWords = groupIsBg ? lineBgWords : lineWords;
 
-				if (isSylMode) {
+				// Arabic etc = one span per word (keeps letters joined)
+				const joinsLetters = group.some((si) =>
+					JOINING_LETTER.test(syllabus[si]?.text ?? ""),
+				);
+				if (isSylMode && !joinsLetters) {
 					const wordStartMs = firstSyl.time;
 					const groupSpans: HTMLSpanElement[] = [];
+					// Word wrapper (stops words splitting on resize)
+					const wordEl = document.createElement("span");
+					wordEl.className = "rl-wbw-syl-group";
+					targetContainer.appendChild(wordEl);
 					for (const si of group) {
 						const syl = syllabus[si];
 						if (!syl) continue;
@@ -3306,7 +3344,7 @@ const buildWordSpans = (): {
 								s.classList.remove("rl-wbw-word-hover");
 						});
 						groupSpans.push(span);
-						targetContainer.appendChild(span);
+						wordEl.appendChild(span);
 						const entry: WordEntry = {
 							el: span,
 							start: syl.time,
@@ -3343,6 +3381,7 @@ const buildWordSpans = (): {
 		if (settings.translateLyrics && needsTranslation(apiLine)) {
 			const translationEl = document.createElement("p");
 			translationEl.className = "rl-wbw-translation";
+			translationEl.dir = "auto";
 			forceStyle(translationEl, { margin: "0" });
 			// Word/Syllable: translated words light up with their syllable
 			const timed = effectiveStyle !== 0 ? apiLine.translationSyllabus : undefined;
@@ -3468,6 +3507,7 @@ const buildTidalLines = (
 	const tidalSpans = Array.from(
 		innerDiv.querySelectorAll('span[data-test="lyrics-line"]'),
 	) as HTMLElement[];
+	const lineTexts: string[] = [];
 	let textIdx = 0;
 	for (const tidalSpan of tidalSpans) {
 		const rawText = tidalSpan.textContent ?? "";
@@ -3475,7 +3515,10 @@ const buildTidalLines = (
 			text: rawText,
 			romanized: romanizedLines?.[textIdx],
 		});
-		if (rawText.trim().length > 0) textIdx++;
+		if (rawText.trim().length > 0) {
+			textIdx++;
+			lineTexts.push(text);
+		}
 		if (rawText.trim().length === 0) {
 			const spacer = document.createElement("div");
 			spacer.className = "rl-wbw-line rl-wbw-spacer";
@@ -3511,6 +3554,9 @@ const buildTidalLines = (
 			"align-items": "initial",
 		});
 
+		// Text picks its own direction (Arabic, Hebrew etc)
+		lineDiv.dir = "auto";
+
 		const lineSpan = document.createElement("span");
 		lineSpan.className = "rl-wbw-word";
 		lineSpan.textContent = text;
@@ -3541,6 +3587,7 @@ const buildTidalLines = (
 		});
 	}
 
+	if (isRtlSong(lineTexts)) wbwContainer.classList.add("rl-rtl");
 	innerDiv.appendChild(wbwContainer);
 	return { lines };
 };
@@ -4788,6 +4835,36 @@ const updateAllowAIFromSettings = (): void => {
 	toggle();
 };
 (window as any).updateAllowAI = updateAllowAIFromSettings;
+
+// Lyrics API: off = TIDAL lyrics only <3
+const syncLyricsApi = (): void => {
+	document.body.classList.toggle("rl-api-off", !settings.lyricsApi);
+	if (settings.lyricsApi) {
+		createLyricsMenu();
+		return;
+	}
+	closeLyricsMenu();
+	document.querySelector(".rl-lyrics-menu-trigger")?.remove();
+};
+// Observer makes the menu, just the class here
+document.body.classList.toggle("rl-api-off", !settings.lyricsApi);
+unloads.add(() => document.body.classList.remove("rl-api-off"));
+const updateLyricsApiFromSettings = (): void => {
+	syncLyricsApi();
+	if (!settings.lyricsApi) {
+		retimeTrackId = null;
+		cancelAutoSylla();
+	}
+	autoSyllaTrackId = null;
+	cachedLyricsKey = null;
+	cachedLyricsData = null;
+	cachedTidalRomanizeKey = null;
+	cachedTidalRomanizedLines = null;
+	syncAiIndicator();
+	sylLog(`[RL-Syllable] Lyrics API ${settings.lyricsApi ? "on" : "off"}`);
+	toggle();
+};
+(window as any).updateLyricsApi = updateLyricsApiFromSettings;
 
 // Radiant AI: off drops Sylla lyrics (killswitch)
 const updateRadiantAIFromSettings = (): void => {

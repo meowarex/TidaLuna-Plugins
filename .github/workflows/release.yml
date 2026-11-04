@@ -1,4 +1,4 @@
-name: "[main] Release"
+name: "[main] Deploy to Appwrite"
 
 on:
  push:
@@ -7,29 +7,70 @@ on:
   paths-ignore:
    - "**/*.md"
    - ".vscode/**"
+ workflow_dispatch:
+
+concurrency:
+ group: appwrite-deploy
+ cancel-in-progress: false
+
+env:
+ APPWRITE_ENDPOINT: https://syd.cloud.appwrite.io/v1
+ APPWRITE_PROJECT: atomix-api
+ APPWRITE_SITE: TidaLuna-Plugin-Release
 
 jobs:
- Build:
-  uses: ./.github/workflows/build.yml
-  secrets: inherit
-
- Release:
-  name: Release latest on GitHub
-  needs: Build
+ Deploy:
+  name: Build & deploy store
+  # GitCafe only (GitHub mirror would double deploy)
+  if: github.server_url != 'https://github.com'
   runs-on: ubuntu-latest
 
   steps:
-   - name: Download All Artifacts
-     uses: actions/download-artifact@v4
-     with:
-      name: luna-artifacts
-      path: ./dist/
+   - uses: actions/checkout@v4
 
-   - name: Publish latest release on GitHub
-     uses: marvinpinto/action-automatic-releases@latest
+   - name: Install pnpm 📥
+     uses: pnpm/action-setup@v4
+     # Version is read from `packageManager` in package.json for reproducible builds.
+
+   - name: Install Node.js 📥
+     uses: actions/setup-node@v4
+     # No pnpm cache (GitCafe has no cache service)
      with:
-      repo_token: ${{ secrets.GITHUB_TOKEN }}
-      automatic_release_tag: latest
-      prerelease: false
-      title: Latest Release
-      files: ./dist/**
+      node-version: latest
+
+   - name: Install dependencies 📥
+     run: pnpm install
+
+   - name: Build
+     run: pnpm run build
+     env:
+      RL_ACCESS_TOKEN_ID: ${{ secrets.RL_ACCESS_TOKEN_ID }}
+      RL_ACCESS_TOKEN: ${{ secrets.RL_ACCESS_TOKEN }}
+
+   - name: Deploy to Appwrite Sites 🚀
+     env:
+      APPWRITE_KEY: ${{ secrets.APPWRITE_KEY }}
+     run: |
+      tar -czf code.tar.gz -C dist .
+      # Appwrite caps single uploads at 5MB
+      [ "$(stat -c%s code.tar.gz)" -lt 5000000 ] || { echo "code.tar.gz is over 5MB"; exit 1; }
+
+      api() { curl -sS --fail-with-body -H "X-Appwrite-Project: $APPWRITE_PROJECT" -H "X-Appwrite-Key: $APPWRITE_KEY" "$@"; }
+      # Node reads the JSON (jq might not exist)
+      field() { node -e 'let s="";process.stdin.on("data",(d)=>(s+=d)).on("end",()=>console.log(JSON.parse(s)[process.argv[1]]))' "$1"; }
+
+      deployment=$(api -X POST "$APPWRITE_ENDPOINT/sites/$APPWRITE_SITE/deployments" \
+       -F "code=@code.tar.gz;type=application/gzip" -F "activate=true" | field '$id')
+      echo "Deployment $deployment created"
+
+      for _ in $(seq 1 60); do
+       status=$(api "$APPWRITE_ENDPOINT/sites/$APPWRITE_SITE/deployments/$deployment" | field status)
+       echo "Status: $status"
+       case "$status" in
+        ready) exit 0 ;;
+        failed|canceled) exit 1 ;;
+       esac
+       sleep 5
+      done
+      echo "Timed out waiting for deployment"
+      exit 1

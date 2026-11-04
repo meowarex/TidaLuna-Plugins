@@ -25,6 +25,7 @@ declare global {
 		updateTranslateLyrics?: () => void;
 		updateTranslateLyricsSetting?: (checked: boolean) => void;
 		updateTranslateLanguageSetting?: (value: string) => void;
+		updateLyricsApi?: () => void;
 		updateAllowAI?: () => void;
 		updateRadiantAI?: () => void;
 		updateRadiantAISetting?: (checked: boolean) => void;
@@ -57,6 +58,8 @@ export const settings = await ReactiveStore.getPluginStorage("RadiantLyrics", {
 	translateLyrics: false,
 	// Sent as ?language=, see TRANSLATE_LANGUAGES
 	translateLanguage: "english",
+	// Off = TIDAL lyrics only (no RL API / Sylla)
+	lyricsApi: true,
 	// Off hides all AI stuff and skips AI lyrics
 	allowAI: true,
 	// Sylla makes missing lyrics & retimes Line lyrics (needs allowAI)
@@ -245,6 +248,7 @@ export const Settings = () => {
 			window.updateTranslateLanguageSetting = undefined;
 		};
 	}, []);
+	const [lyricsApi, setLyricsApi] = React.useState(settings.lyricsApi);
 	const [allowAI, setAllowAI] = React.useState(settings.allowAI);
 	const [radiantAI, setRadiantAI] = React.useState(
 		settings.radiantAI,
@@ -272,19 +276,21 @@ export const Settings = () => {
 
 	return (
 		<LunaSettings>
-			<AnySwitch
-				title="AI Features"
-				desc="Sylla lyric generation & retiming. Off hides them and the API skips AI generated lyrics"
-				checked={allowAI}
-				onChange={(_: unknown, checked: boolean) => {
-					settings.allowAI = checked;
-					setAllowAI(checked);
-					if (window.updateAllowAI) {
-						window.updateAllowAI();
-					}
-				}}
-			/>
-			{allowAI && (
+			{lyricsApi && (
+				<AnySwitch
+					title="AI Features"
+					desc="Sylla lyric generation & retiming. Off hides them and the API skips AI generated lyrics"
+					checked={allowAI}
+					onChange={(_: unknown, checked: boolean) => {
+						settings.allowAI = checked;
+						setAllowAI(checked);
+						if (window.updateAllowAI) {
+							window.updateAllowAI();
+						}
+					}}
+				/>
+			)}
+			{lyricsApi && allowAI && (
 				<AnySwitch
 					title="Radiant AI"
 					desc="Generates and Re-times lyrics with Sylla AI"
@@ -298,6 +304,18 @@ export const Settings = () => {
 					}}
 				/>
 			)}
+			<AnySwitch
+				title="Lyrics API"
+				desc="Radiant Lyrics API & Sylla. Off uses TIDAL lyrics only"
+				checked={lyricsApi}
+				onChange={(_: unknown, checked: boolean) => {
+					settings.lyricsApi = checked;
+					setLyricsApi(checked);
+					if (window.updateLyricsApi) {
+						window.updateLyricsApi();
+					}
+				}}
+			/>
 			<AnySwitch
 				title="Lyrics Glow Effect"
 				desc="Enable glowing effect on lyrics"
@@ -395,49 +413,53 @@ export const Settings = () => {
 					}
 				}}
       />
-      			<AnySwitch
-				title="Romanize Lyrics"
-				desc="Display romanized (latin) text for non-latin lyrics (e.g. Korean, Japanese, Chinese)"
-				checked={romanizeLyrics}
-				onChange={(_: unknown, checked: boolean) => {
-					settings.romanizeLyrics = checked;
-					setRomanizeLyrics(checked);
-					if (window.updateRomanizeLyrics) {
-						window.updateRomanizeLyrics();
-					}
-				}}
-			/>
-			<AnySwitch
-				title="Translate Lyrics"
-				desc="Display a translation above each lyric line"
-				checked={translateLyrics}
-				onChange={(_: unknown, checked: boolean) => {
-					settings.translateLyrics = checked;
-					setTranslateLyrics(checked);
-					if (window.updateTranslateLyrics) {
-						window.updateTranslateLyrics();
-					}
-				}}
-			/>
-			<LunaSelectSetting
-				title="Translation Language"
-				desc="Language lyrics are translated into"
-				value={translateLanguage}
-				onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-					const v = e.target.value;
-					settings.translateLanguage = v;
-					setTranslateLanguage(v);
-					if (window.updateTranslateLyrics) {
-						window.updateTranslateLyrics();
-					}
-				}}
-			>
-				{TRANSLATE_LANGUAGES.map((l) => (
-					<LunaSelectItem key={l.value} value={l.value}>
-						{l.label}
-					</LunaSelectItem>
-				))}
-			</LunaSelectSetting>
+      			{lyricsApi && (
+				<>
+					<AnySwitch
+						title="Romanize Lyrics"
+						desc="Display romanized (latin) text for non-latin lyrics (e.g. Korean, Japanese, Chinese)"
+						checked={romanizeLyrics}
+						onChange={(_: unknown, checked: boolean) => {
+							settings.romanizeLyrics = checked;
+							setRomanizeLyrics(checked);
+							if (window.updateRomanizeLyrics) {
+								window.updateRomanizeLyrics();
+							}
+						}}
+					/>
+					<AnySwitch
+						title="Translate Lyrics"
+						desc="Display a translation above each lyric line"
+						checked={translateLyrics}
+						onChange={(_: unknown, checked: boolean) => {
+							settings.translateLyrics = checked;
+							setTranslateLyrics(checked);
+							if (window.updateTranslateLyrics) {
+								window.updateTranslateLyrics();
+							}
+						}}
+					/>
+					<LunaSelectSetting
+						title="Translation Language"
+						desc="Language lyrics are translated into"
+						value={translateLanguage}
+						onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+							const v = e.target.value;
+							settings.translateLanguage = v;
+							setTranslateLanguage(v);
+							if (window.updateTranslateLyrics) {
+								window.updateTranslateLyrics();
+							}
+						}}
+					>
+						{TRANSLATE_LANGUAGES.map((l) => (
+							<LunaSelectItem key={l.value} value={l.value}>
+								{l.label}
+							</LunaSelectItem>
+						))}
+					</LunaSelectSetting>
+				</>
+			)}
 			<AnySwitch
 				title="Hide UI Feature"
 				desc="Enable hide/unhide UI functionality with toggle buttons"

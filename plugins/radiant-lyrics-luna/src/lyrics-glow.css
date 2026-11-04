@@ -18,6 +18,10 @@
 
 .rl-wbw-line:not(.rl-wbw-line-active) > .rl-wbw-word:hover,
 .rl-wbw-line:not(.rl-wbw-line-active) > .rl-wbw-word.rl-wbw-word-hover,
+.rl-wbw-line:not(.rl-wbw-line-active) > .rl-wbw-syl-group > .rl-wbw-word:hover,
+.rl-wbw-line:not(.rl-wbw-line-active)
+	> .rl-wbw-syl-group
+	> .rl-wbw-word.rl-wbw-word-hover,
 .rl-wbw-line:not(.rl-wbw-line-active) .rl-wbw-main .rl-wbw-word:hover,
 .rl-wbw-line:not(.rl-wbw-line-active)
 	.rl-wbw-main

@@ -694,6 +694,11 @@ body.rl-integrated-seekbar [data-test="footer-player"] [class*="playerContent"] 
 	padding-right: 0;
 }
 
+/* Keeps a word's syllables on one line */
+.rl-wbw-syl-group {
+	white-space: nowrap;
+}
+
 /* Blur Inactive */
 .rl-blur-active .rl-wbw-line {
 	filter: blur(0.07em);
@@ -807,6 +812,10 @@ body.rl-owns-lyric-scroll [class*="_syncButtonContainer_"] {
 /* Hover word (Grouped Syllables) */
 .rl-wbw-line:not(.rl-wbw-line-active) > .rl-wbw-word:hover,
 .rl-wbw-line:not(.rl-wbw-line-active) > .rl-wbw-word.rl-wbw-word-hover,
+.rl-wbw-line:not(.rl-wbw-line-active) > .rl-wbw-syl-group > .rl-wbw-word:hover,
+.rl-wbw-line:not(.rl-wbw-line-active)
+	> .rl-wbw-syl-group
+	> .rl-wbw-word.rl-wbw-word-hover,
 .rl-wbw-line:not(.rl-wbw-line-active) .rl-wbw-main .rl-wbw-word:hover,
 .rl-wbw-line:not(.rl-wbw-line-active)
 	.rl-wbw-main
@@ -849,6 +858,29 @@ body.rl-owns-lyric-scroll [class*="_syncButtonContainer_"] {
 	}
 }
 
+@keyframes rl-wipe-rtl {
+	from {
+		background-size:
+			var(--rl-wipe-feather, 0.75em) 100%,
+			0% 100%,
+			100% 100%;
+		background-position:
+			calc(100% + var(--rl-wipe-feather, 0.75em) / 2) 0%,
+			right,
+			left;
+	}
+	to {
+		background-size:
+			var(--rl-wipe-feather, 0.75em) 100%,
+			100% 100%,
+			100% 100%;
+		background-position:
+			calc(var(--rl-wipe-feather, 0.75em) / -2) 0%,
+			right,
+			left;
+	}
+}
+
 /* Syllable active: gradient sweep/wipe via background-clip */
 .rl-wbw-word.rl-syl-active {
 	/* biome-ignore lint: Kill base transitions so class swaps are instant */
@@ -881,6 +913,16 @@ body.rl-owns-lyric-scroll [class*="_syncButtonContainer_"] {
 	text-shadow: none !important;
 	/* biome-ignore lint: No glow for syllable mode */
 	filter: none !important;
+}
+
+/* RTL words wipe from the right (not translations) */
+.rl-wbw-word.rl-syl-active:dir(rtl) {
+	/* biome-ignore lint: Has to beat the inline rl-wipe animation */
+	animation-name: rl-wipe-rtl !important;
+	background-position:
+		calc(100% + var(--rl-wipe-feather, 0.75em) / 2) 0%,
+		right,
+		left;
 }
 
 /* AI timing: softer word color flips SUPER WIP */
@@ -1004,12 +1046,12 @@ body.rl-owns-lyric-scroll [class*="_syncButtonContainer_"] {
 }
 
 .rl-dual-side .rl-wbw-line.rl-singer-right .rl-wbw-translation {
-	text-align: end;
+	text-align: right;
 }
 
 /* Singer duet positioning */
 .rl-wbw-line.rl-singer-right {
-	text-align: end;
+	text-align: right;
 	transform-origin: right;
 }
 
@@ -1035,7 +1077,60 @@ body.rl-owns-lyric-scroll [class*="_syncButtonContainer_"] {
 }
 
 .rl-dual-side .rl-wbw-line.rl-singer-right .rl-wbw-bg-container {
-	text-align: end;
+	text-align: right;
+}
+
+/* RTL songs = everything mirrored <3 */
+.rl-wbw-container.rl-rtl .rl-wbw-line {
+	text-align: right;
+	transform-origin: right;
+	padding-left: var(--rl-line-shift, 20px);
+	padding-right: 0;
+}
+
+.rl-wbw-container.rl-rtl .rl-wbw-line.rl-wbw-line-active {
+	padding-left: 0;
+	padding-right: var(--rl-line-shift, 20px);
+}
+
+.rl-wbw-container.rl-rtl .rl-wbw-line.rl-singer-right:not(.rl-wbw-line-active) {
+	padding-left: 0;
+	padding-right: var(--rl-line-shift, 20px);
+}
+
+.rl-wbw-container.rl-rtl .rl-wbw-line.rl-singer-right.rl-wbw-line-active {
+	padding-left: var(--rl-line-shift, 20px);
+	padding-right: 0;
+}
+
+.rl-wbw-container.rl-rtl .rl-wbw-line.rl-singer-right {
+	text-align: left;
+	transform-origin: left;
+}
+
+.rl-wbw-container.rl-rtl.rl-dual-side .rl-wbw-line.rl-singer-left:not(.rl-wbw-line-active) {
+	padding-left: calc(20% + var(--rl-line-shift, 20px));
+	padding-right: 0;
+}
+
+.rl-wbw-container.rl-rtl.rl-dual-side .rl-wbw-line.rl-singer-left.rl-wbw-line-active {
+	padding-left: 20%;
+	padding-right: var(--rl-line-shift, 20px);
+}
+
+.rl-wbw-container.rl-rtl.rl-dual-side .rl-wbw-line.rl-singer-right:not(.rl-wbw-line-active) {
+	padding-left: 0;
+	padding-right: calc(20% + var(--rl-line-shift, 20px));
+}
+
+.rl-wbw-container.rl-rtl.rl-dual-side .rl-wbw-line.rl-singer-right.rl-wbw-line-active {
+	padding-left: var(--rl-line-shift, 20px);
+	padding-right: 20%;
+}
+
+.rl-wbw-container.rl-rtl.rl-dual-side .rl-wbw-line.rl-singer-right .rl-wbw-translation,
+.rl-wbw-container.rl-rtl.rl-dual-side .rl-wbw-line.rl-singer-right .rl-wbw-bg-container {
+	text-align: left;
 }
 
 /* MARKER: Lyrics panel vertical fade (Tidal’s mask clips sides) */
@@ -1065,8 +1160,8 @@ body.rl-owns-lyric-scroll [class*="_syncButtonContainer_"] {
 [data-test="now-playing-lyrics"] > div:has(.rl-wbw-active),
 [data-test="now-playing-lyrics"] > div:has([data-test="lyrics-line"]) {
 	/* biome-ignore lint: Override Tidal inline padding on lyrics scrollport */
-	padding-left: calc(var(--rl-glow-outer, 20px) + 0px) !important; /* 4px cushion (not needed atm) */
-	padding-right: calc(var(--rl-glow-outer, 20px) + 0px) !important; /* 4px cushion (not needed atm) */
+	padding-left: max(var(--rl-glow-outer, 20px), calc(16px * var(--rl-font-scale, 1))) !important; /* Never 0 (Arabic glyphs overhang and get cut) */
+	padding-right: max(var(--rl-glow-outer, 20px), calc(16px * var(--rl-font-scale, 1))) !important;
 	box-sizing: border-box !important;
 }
 
@@ -1230,4 +1325,9 @@ body.rl-owns-lyric-scroll [class*="_syncButtonContainer_"] {
 /*makes glare effect's border-radius match artwork*/
 ._glare_fdbaeab{
 	border-radius: 10px;
+}
+
+/* Lyrics API off = no flush button */
+body.rl-api-off .flush-lyrics-button {
+	display: none !important;
 }
