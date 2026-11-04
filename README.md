@@ -69,7 +69,7 @@ Allows users to hide/remove UI elements by right clicking on them.
 1. Open TidaLuna after Building & Serving
 2. Navigate to Luna Settings (Top right of Tidal)
 3. Click "Plugin Store" Tab
-4. Paste in the "Install from URL" Bar `https://github.com/meowarex/tidalluna-plugins/releases/download/latest/store.json`
+4. Paste in the "Install from URL" Bar `https://tidaluna-plugins.appwrite.network/store.json`
 
 ## Installation from Source
 
