@@ -697,6 +697,8 @@ body.rl-integrated-seekbar [data-test="footer-player"] [class*="playerContent"] 
 /* Keeps a word's syllables on one line */
 .rl-wbw-syl-group {
 	white-space: nowrap;
+	/* biome-ignore lint: Must beat Tidal _hasCues_ span opacity (dims whole word) */
+	opacity: 1 !important;
 }
 
 /* Blur Inactive */
